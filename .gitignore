@@ -35,3 +35,4 @@ Desktop.ini
 # Rider/VS Code (если используете)
 .idea/
 .vscode/
+/publish
