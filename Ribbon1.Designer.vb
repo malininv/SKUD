@@ -1,7 +1,7 @@
 ﻿Partial Class Ribbon1
     Inherits Microsoft.Office.Tools.Ribbon.RibbonBase
 
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Public Sub New(ByVal container As System.ComponentModel.IContainer)
         MyClass.New()
 
@@ -12,7 +12,7 @@
 
     End Sub
 
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Public Sub New()
         MyBase.New(Globals.Factory.GetRibbonFactory())
 
@@ -22,7 +22,7 @@
     End Sub
 
     'Component overrides dispose to clean up the component list.
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Protected Overrides Sub Dispose(ByVal disposing As Boolean)
         Try
             If disposing AndAlso components IsNot Nothing Then
@@ -39,7 +39,7 @@
     'NOTE: The following procedure is required by the Component Designer
     'It can be modified using the Component Designer.
     'Do not modify it using the code editor.
-    <System.Diagnostics.DebuggerStepThrough()> _
+    <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         Me.Tab1 = Me.Factory.CreateRibbonTab
         Me.Group1 = Me.Factory.CreateRibbonGroup
@@ -47,69 +47,65 @@
         Me.btnFilesFile = Me.Factory.CreateRibbonButton
         Me.btnSheetsFile = Me.Factory.CreateRibbonButton
         Me.btnSheetsActive = Me.Factory.CreateRibbonButton
-        Me.Box1 = Me.Factory.CreateRibbonBox
-        Me.Box2 = Me.Factory.CreateRibbonBox
+        Me.Group2 = Me.Factory.CreateRibbonGroup
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
-        Me.Box1.SuspendLayout()
-        Me.Box2.SuspendLayout()
+        Me.Group2.SuspendLayout()
         Me.SuspendLayout()
         '
         'Tab1
         '
         Me.Tab1.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Office
         Me.Tab1.Groups.Add(Me.Group1)
+        Me.Tab1.Groups.Add(Me.Group2)
         Me.Tab1.Label = "СКУД"
         Me.Tab1.Name = "Tab1"
         '
         'Group1
         '
-        Me.Group1.Items.Add(Me.Box1)
-        Me.Group1.Items.Add(Me.Box2)
-        Me.Group1.Label = "Отчет по проходам"
+        Me.Group1.Items.Add(Me.btnSheetsActive)
+        Me.Group1.Items.Add(Me.btnSheetsFile)
+        Me.Group1.Label = "Отделы по листам"
         Me.Group1.Name = "Group1"
         '
         'btnFilesActive
         '
-        Me.btnFilesActive.Label = "По файлам (эта книга)"
+        Me.btnFilesActive.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnFilesActive.Label = "Активная книга"
         Me.btnFilesActive.Name = "btnFilesActive"
         Me.btnFilesActive.OfficeImageId = "Folder"
         Me.btnFilesActive.ShowImage = True
         '
         'btnFilesFile
         '
-        Me.btnFilesFile.Label = "По файлам (выбрать книгу)"
+        Me.btnFilesFile.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnFilesFile.Label = "Выбрать файл"
         Me.btnFilesFile.Name = "btnFilesFile"
         Me.btnFilesFile.OfficeImageId = "FileOpen"
         Me.btnFilesFile.ShowImage = True
         '
         'btnSheetsFile
         '
-        Me.btnSheetsFile.Label = "По листам (выбрать книгу)"
+        Me.btnSheetsFile.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnSheetsFile.Label = "Выбрать файл"
         Me.btnSheetsFile.Name = "btnSheetsFile"
         Me.btnSheetsFile.OfficeImageId = "FileOpen"
         Me.btnSheetsFile.ShowImage = True
         '
         'btnSheetsActive
         '
-        Me.btnSheetsActive.Label = "По листам (эта книга)"
+        Me.btnSheetsActive.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnSheetsActive.Label = "Активная книга"
         Me.btnSheetsActive.Name = "btnSheetsActive"
         Me.btnSheetsActive.OfficeImageId = "TableInsert"
         Me.btnSheetsActive.ShowImage = True
         '
-        'Box1
+        'Group2
         '
-        Me.Box1.BoxStyle = Microsoft.Office.Tools.Ribbon.RibbonBoxStyle.Vertical
-        Me.Box1.Items.Add(Me.btnSheetsActive)
-        Me.Box1.Items.Add(Me.btnSheetsFile)
-        Me.Box1.Name = "Box1"
-        '
-        'Box2
-        '
-        Me.Box2.BoxStyle = Microsoft.Office.Tools.Ribbon.RibbonBoxStyle.Vertical
-        Me.Box2.Items.Add(Me.btnFilesFile)
-        Me.Box2.Items.Add(Me.btnFilesActive)
-        Me.Box2.Name = "Box2"
+        Me.Group2.Items.Add(Me.btnFilesActive)
+        Me.Group2.Items.Add(Me.btnFilesFile)
+        Me.Group2.Label = "Отделы по файлам"
+        Me.Group2.Name = "Group2"
         '
         'Ribbon1
         '
@@ -120,10 +116,8 @@
         Me.Tab1.PerformLayout()
         Me.Group1.ResumeLayout(False)
         Me.Group1.PerformLayout()
-        Me.Box1.ResumeLayout(False)
-        Me.Box1.PerformLayout()
-        Me.Box2.ResumeLayout(False)
-        Me.Box2.PerformLayout()
+        Me.Group2.ResumeLayout(False)
+        Me.Group2.PerformLayout()
         Me.ResumeLayout(False)
 
     End Sub
@@ -134,8 +128,7 @@
     Friend WithEvents btnSheetsActive As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents btnSheetsFile As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents btnFilesFile As Microsoft.Office.Tools.Ribbon.RibbonButton
-    Friend WithEvents Box1 As Microsoft.Office.Tools.Ribbon.RibbonBox
-    Friend WithEvents Box2 As Microsoft.Office.Tools.Ribbon.RibbonBox
+    Friend WithEvents Group2 As Microsoft.Office.Tools.Ribbon.RibbonGroup
 End Class
 
 Partial Class ThisRibbonCollection
