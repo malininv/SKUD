@@ -43,10 +43,16 @@
     Private Sub InitializeComponent()
         Me.Tab1 = Me.Factory.CreateRibbonTab
         Me.Group1 = Me.Factory.CreateRibbonGroup
-        Me.BtnFromActive = Me.Factory.CreateRibbonButton
-        Me.BtnFromFile = Me.Factory.CreateRibbonButton
+        Me.btnSheetsActive = Me.Factory.CreateRibbonButton
+        Me.btnSheetsFile = Me.Factory.CreateRibbonButton
+        Me.btnFilesActive = Me.Factory.CreateRibbonButton
+        Me.btnFilesFile = Me.Factory.CreateRibbonButton
+        Me.ButtonGroup1 = Me.Factory.CreateRibbonButtonGroup
+        Me.ButtonGroup2 = Me.Factory.CreateRibbonButtonGroup
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
+        Me.ButtonGroup1.SuspendLayout()
+        Me.ButtonGroup2.SuspendLayout()
         Me.SuspendLayout()
         '
         'Tab1
@@ -58,20 +64,42 @@
         '
         'Group1
         '
-        Me.Group1.Items.Add(Me.BtnFromActive)
-        Me.Group1.Items.Add(Me.BtnFromFile)
+        Me.Group1.Items.Add(Me.ButtonGroup1)
+        Me.Group1.Items.Add(Me.ButtonGroup2)
         Me.Group1.Label = "Отчет по проходам"
         Me.Group1.Name = "Group1"
         '
-        'BtnFromActive
+        'btnSheetsActive
         '
-        Me.BtnFromActive.Label = "По отделам активный файл"
-        Me.BtnFromActive.Name = "BtnFromActive"
+        Me.btnSheetsActive.Label = "По листам (это книга)"
+        Me.btnSheetsActive.Name = "btnSheetsActive"
         '
-        'BtnFromFile
+        'btnSheetsFile
         '
-        Me.BtnFromFile.Label = "По отделам выбрать файл"
-        Me.BtnFromFile.Name = "BtnFromFile"
+        Me.btnSheetsFile.Label = "По листам (выбрать книгу)"
+        Me.btnSheetsFile.Name = "btnSheetsFile"
+        '
+        'btnFilesActive
+        '
+        Me.btnFilesActive.Label = "По файлам (эта книга)"
+        Me.btnFilesActive.Name = "btnFilesActive"
+        '
+        'btnFilesFile
+        '
+        Me.btnFilesFile.Label = "По файлам (выбрать книгу)"
+        Me.btnFilesFile.Name = "btnFilesFile"
+        '
+        'ButtonGroup1
+        '
+        Me.ButtonGroup1.Items.Add(Me.btnSheetsActive)
+        Me.ButtonGroup1.Items.Add(Me.btnSheetsFile)
+        Me.ButtonGroup1.Name = "ButtonGroup1"
+        '
+        'ButtonGroup2
+        '
+        Me.ButtonGroup2.Items.Add(Me.btnFilesActive)
+        Me.ButtonGroup2.Items.Add(Me.btnFilesFile)
+        Me.ButtonGroup2.Name = "ButtonGroup2"
         '
         'Ribbon1
         '
@@ -82,14 +110,22 @@
         Me.Tab1.PerformLayout()
         Me.Group1.ResumeLayout(False)
         Me.Group1.PerformLayout()
+        Me.ButtonGroup1.ResumeLayout(False)
+        Me.ButtonGroup1.PerformLayout()
+        Me.ButtonGroup2.ResumeLayout(False)
+        Me.ButtonGroup2.PerformLayout()
         Me.ResumeLayout(False)
 
     End Sub
 
     Friend WithEvents Tab1 As Microsoft.Office.Tools.Ribbon.RibbonTab
     Friend WithEvents Group1 As Microsoft.Office.Tools.Ribbon.RibbonGroup
-    Friend WithEvents BtnFromActive As Microsoft.Office.Tools.Ribbon.RibbonButton
-    Friend WithEvents BtnFromFile As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnSheetsActive As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnSheetsFile As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnFilesActive As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents ButtonGroup1 As Microsoft.Office.Tools.Ribbon.RibbonButtonGroup
+    Friend WithEvents ButtonGroup2 As Microsoft.Office.Tools.Ribbon.RibbonButtonGroup
+    Friend WithEvents btnFilesFile As Microsoft.Office.Tools.Ribbon.RibbonButton
 End Class
 
 Partial Class ThisRibbonCollection
