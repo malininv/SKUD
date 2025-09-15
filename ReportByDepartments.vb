@@ -351,7 +351,8 @@ Public Module ReportByDepartments
             'красим 0 проходы
             If IsZeroTime(timeVal) Then
                 Dim tcell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
-                tcell.Interior.Color = red ' фон красный
+                tcell.Interior.Color = paleYellow ' фон желтый
+                tcell.Font.Color = ColorTranslator.ToOle(Color.Red) ' шрифт красный
                 Marshal.FinalReleaseComObject(tcell)
             End If
 
