@@ -29,6 +29,7 @@ Public Module ReportByDepartments
     Private Const COL_DEPT As Integer = 2   ' B — отдел (первая строка блока)
     Private Const COL_DATE As Integer = 6   ' F — дата
     Private Const COL_TIME As Integer = 7   ' G — время
+    Private Const COL_OVERTIME As Integer = 13 ' "Фактическая переработка"
 
     ' ====================== SHEETS MODE (one workbook with many sheets) ======================
     Public Function GenerateFromActiveWorkbook(app As Excel.Application) As String
@@ -127,13 +128,9 @@ Public Module ReportByDepartments
                         Marshal.FinalReleaseComObject(destPaste)
 
                         BeautifySheet(wsTarget)
-                        For c As Integer = 1 To lastCol
-                            Dim srcCol As Excel.Range = CType(wsSource.Columns(c), Excel.Range)
-                            Dim dstCol As Excel.Range = CType(wsTarget.Columns(c), Excel.Range)
-                            dstCol.ColumnWidth = srcCol.ColumnWidth
-                            Marshal.FinalReleaseComObject(srcCol)
-                            Marshal.FinalReleaseComObject(dstCol)
-                        Next
+                        Dim rngFit As Excel.Range = wsTarget.UsedRange
+                        rngFit.Columns.AutoFit()
+                        Marshal.FinalReleaseComObject(rngFit)
                     End If
                     startCopyRow = r + 1
                 End If
@@ -278,13 +275,9 @@ Public Module ReportByDepartments
                     Marshal.FinalReleaseComObject(destPaste)
 
                     BeautifySheet(wsTarget)
-                    For c As Integer = 1 To lastCol
-                        Dim srcCol As Excel.Range = CType(wsSource.Columns(c), Excel.Range)
-                        Dim dstCol As Excel.Range = CType(wsTarget.Columns(c), Excel.Range)
-                        dstCol.ColumnWidth = srcCol.ColumnWidth
-                        Marshal.FinalReleaseComObject(srcCol)
-                        Marshal.FinalReleaseComObject(dstCol)
-                    Next
+                    Dim rngFit As Excel.Range = wsTarget.UsedRange
+                    rngFit.Columns.AutoFit()
+                    Marshal.FinalReleaseComObject(rngFit)
 
                     ' Save dept workbook incrementally
                     wbDept.Save()
@@ -349,16 +342,90 @@ Public Module ReportByDepartments
         For r As Integer = lastRow To 2 Step -1
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
+            'удаляем выходные
             If IsWeekend(dateVal) AndAlso IsZeroTime(timeVal) Then
                 CType(ws.Rows(r), Excel.Range).Delete(Excel.XlDeleteShiftDirection.xlShiftUp)
                 Continue For
             End If
+
+            'красим 0 проходы
             If IsZeroTime(timeVal) Then
                 Dim tcell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
                 tcell.Interior.Color = red ' фон красный
                 Marshal.FinalReleaseComObject(tcell)
             End If
+
+            ' --- Окраска "Фактическая переработка" ТОЛЬКО для строки ИТОГО (13-й столбец) ---
+            Dim marker As Object = ws.Cells(r, COL_MARKER).Value2
+            If Not IsNothing(marker) AndAlso String.Equals(CStr(marker), "ИТОГО", StringComparison.CurrentCultureIgnoreCase) Then
+                Dim ocell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range) ' 13-й столбец
+                Dim ov As Object = ocell.Value2
+
+                Dim hours As Double
+                Dim haveHours As Boolean = False
+
+                If IsNumeric(ov) Then
+                    ' Число: либо часы, либо дни (если ячейка в формате времени)
+                    Dim v As Double = CDbl(ov)
+                    Dim nf As String = CStr(ocell.NumberFormat)
+                    Dim isTimeFmt As Boolean = (nf.IndexOf(":", StringComparison.Ordinal) >= 0) OrElse
+                                   (nf.IndexOf("[h", StringComparison.OrdinalIgnoreCase) >= 0)
+                    hours = If(isTimeFmt, v * 24.0R, v)
+                    haveHours = True
+                Else
+                    ' Текст вроде "-167:00" → распарсим как часы:минуты(:секунды)
+                    Dim s As String = CStr(ov).Trim()
+                    Dim sign As Double = 1
+                    If s.StartsWith("-"c) Then sign = -1 : s = s.Substring(1)
+                    If s.StartsWith("+"c) Then s = s.Substring(1)
+                    Dim parts() As String = s.Split(":"c)
+                    If parts.Length >= 2 Then
+                        Dim hh As Double, mm As Double, ss As Double
+                        If Double.TryParse(parts(0), hh) AndAlso Double.TryParse(parts(1), mm) Then
+                            If parts.Length >= 3 Then Double.TryParse(parts(2), ss)
+                            hours = sign * (hh + mm / 60.0R + ss / 3600.0R)
+                            haveHours = True
+                        End If
+                    End If
+                End If
+
+                If haveHours Then
+                    ' Снимем CF для этой ячейки, чтобы не перебивало заливку
+                    ocell.FormatConditions.Delete()
+
+                    If hours > 0 Then
+                        ocell.Interior.Color = ColorTranslator.ToOle(Color.LimeGreen)        ' > 0 → зелёный
+                    ElseIf hours >= -1 Then
+                        ocell.Interior.Color = ColorTranslator.ToOle(Color.Yellow)           ' -1..0 → жёлтый (напр. -0,27)
+                    Else
+                        ocell.Interior.Color = ColorTranslator.ToOle(Color.Red)              ' < -1 → красный (напр. -1,27 или -167)
+                    End If
+                End If
+
+                Marshal.FinalReleaseComObject(ocell)
+            End If
         Next
+        ' === Границы: применяем один раз для всего заполненного диапазона ===
+        Dim lastRowAll As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+        Dim lastColAll As Integer = ws.Cells(1, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+
+        If lastRowAll >= 1 AndAlso lastColAll >= 1 Then
+            Dim rngAll As Excel.Range = ws.Range(ws.Cells(1, 1), ws.Cells(lastRowAll, lastColAll))
+            Dim borders As Excel.Borders = rngAll.Borders
+
+            With borders
+                .LineStyle = Excel.XlLineStyle.xlContinuous
+                .Weight = Excel.XlBorderWeight.xlThin
+                .ColorIndex = Excel.XlColorIndex.xlColorIndexAutomatic
+            End With
+
+            ' Гарантируем внутренние линии (иногда коллекционная установка их не трогает)
+            borders(Excel.XlBordersIndex.xlInsideHorizontal).LineStyle = Excel.XlLineStyle.xlContinuous
+            borders(Excel.XlBordersIndex.xlInsideVertical).LineStyle = Excel.XlLineStyle.xlContinuous
+
+            Runtime.InteropServices.Marshal.FinalReleaseComObject(borders)
+            Runtime.InteropServices.Marshal.FinalReleaseComObject(rngAll)
+        End If
     End Sub
 
     Private Function CreateOrGetSheet(wb As Excel.Workbook, baseName As String) As Excel.Worksheet
@@ -449,7 +516,7 @@ Public Module ReportByDepartments
     Private Function LimitSheetName(proposed As String) As String
         Dim name As String = If(proposed, String.Empty).Trim()
         ' Excel допускает до 31 символа в имени листа
-        If name.Length > 31 Then name = name.Substring(0, 31)
+        If name.Length > 18 Then name = name.Substring(0, 18)
         Dim banned As String = "\/?*[]:"
         For Each ch As Char In banned
             name = name.Replace(ch.ToString(), "_")
