@@ -23,8 +23,8 @@ Imports System.Collections.Generic
 
 Public Module ReportByDepartments
 
-    Private Const HEADER_ROW As Integer = 5
-    Private Const DATA_START_ROW As Integer = 6
+    Private Const ROW_HEADER As Integer = 5
+    Private Const ROW_DATA_START As Integer = 6
     Private Const COL_MARKER As Integer = 1 ' A — "ИТОГО"
     Private Const COL_DEPT As Integer = 2   ' B — отдел (первая строка блока)
     Private Const COL_DATE As Integer = 6   ' F — дата
@@ -77,10 +77,10 @@ Public Module ReportByDepartments
                 wsSource.Activate()
             End If
 
-            ApplyAutoFilter(wsSource, HEADER_ROW)
+            ApplyAutoFilter(wsSource, ROW_HEADER)
 
             Dim lastRow As Integer = wsSource.Cells(wsSource.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
-            Dim lastCol As Integer = wsSource.Cells(HEADER_ROW, wsSource.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            Dim lastCol As Integer = wsSource.Cells(ROW_HEADER, wsSource.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
 
             ' Create output workbook
             Dim wbNew As Excel.Workbook = app.Workbooks.Add(Excel.XlWBATemplate.xlWBATWorksheet)
@@ -96,9 +96,9 @@ Public Module ReportByDepartments
             wbNew.SaveAs(Filename:=savePath, FileFormat:=Excel.XlFileFormat.xlOpenXMLWorkbook)
 
             Dim created As New Dictionary(Of String, Excel.Worksheet)(StringComparer.CurrentCulture)
-            Dim startCopyRow As Integer = DATA_START_ROW
+            Dim startCopyRow As Integer = ROW_DATA_START
 
-            For r As Integer = HEADER_ROW + 1 To lastRow
+            For r As Integer = ROW_HEADER + 1 To lastRow
                 Dim markerObj As Object = GetCellValue(wsSource, r, COL_MARKER)
                 If StringEquals(markerObj, "ИТОГО") Then
                     Dim deptRaw As String = CStr(GetCellValue(wsSource, startCopyRow, COL_DEPT))
@@ -111,7 +111,7 @@ Public Module ReportByDepartments
                         If Not created.TryGetValue(dept, wsTarget) OrElse wsTarget Is Nothing Then
                             wsTarget = CreateOrGetSheet(wbNew, dept)
                             ' Header copy
-                            Dim headerRowRange As Excel.Range = CType(wsSource.Rows(HEADER_ROW), Excel.Range)
+                            Dim headerRowRange As Excel.Range = CType(wsSource.Rows(ROW_HEADER), Excel.Range)
                             Dim destHeaderRow As Excel.Range = CType(wsTarget.Rows(1), Excel.Range)
                             headerRowRange.Copy(Destination:=destHeaderRow)
                             destHeaderRow.Font.Bold = True
@@ -197,10 +197,10 @@ Public Module ReportByDepartments
                 wsSource.Activate()
             End If
 
-            ApplyAutoFilter(wsSource, HEADER_ROW)
+            ApplyAutoFilter(wsSource, ROW_HEADER)
 
             Dim lastRow As Integer = wsSource.Cells(wsSource.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
-            Dim lastCol As Integer = wsSource.Cells(HEADER_ROW, wsSource.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            Dim lastCol As Integer = wsSource.Cells(ROW_HEADER, wsSource.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
 
             Dim saveRoot As String = If(String.IsNullOrEmpty(srcWb.Path), app.DefaultFilePath, srcWb.Path)
             Dim baseNamePerDept As String = Path.GetFileNameWithoutExtension(srcWb.Name)
@@ -212,8 +212,8 @@ Public Module ReportByDepartments
             Dim createdSheets As New Dictionary(Of String, Excel.Worksheet)(StringComparer.CurrentCulture)
             Dim deptHasAnySheet As New HashSet(Of String)(StringComparer.CurrentCulture)
 
-            Dim startCopyRow As Integer = DATA_START_ROW
-            For r As Integer = HEADER_ROW + 1 To lastRow
+            Dim startCopyRow As Integer = ROW_DATA_START
+            For r As Integer = ROW_HEADER + 1 To lastRow
                 Dim markerObj As Object = GetCellValue(wsSource, r, COL_MARKER)
                 If StringEquals(markerObj, "ИТОГО") Then
                     Dim deptRaw As String = CStr(GetCellValue(wsSource, startCopyRow, COL_DEPT))
@@ -256,7 +256,7 @@ Public Module ReportByDepartments
                             wsTarget = CType(wbDept.Sheets.Add(After:=wbDept.Sheets(wbDept.Sheets.Count)), Excel.Worksheet)
                             wsTarget.Name = sheetName
                         End If
-                        Dim headerRowRange As Excel.Range = CType(wsSource.Rows(HEADER_ROW), Excel.Range)
+                        Dim headerRowRange As Excel.Range = CType(wsSource.Rows(ROW_HEADER), Excel.Range)
                         Dim destHeaderRow As Excel.Range = CType(wsTarget.Rows(1), Excel.Range)
                         headerRowRange.Copy(Destination:=destHeaderRow)
                         destHeaderRow.Font.Bold = True
