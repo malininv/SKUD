@@ -37,4 +37,8 @@ Public Class ThisAddIn
         Return ReportByDepartments.GenerateFromFilePerDept(Me.Application, filePath)
     End Function
 
+    Public Function ApplyVacationsFromFile(leavesPath As String) As Integer
+        Return LeaveReasonFiller.ApplyLeaveReasons(Me.Application, leavesPath)
+    End Function
+
 End Class

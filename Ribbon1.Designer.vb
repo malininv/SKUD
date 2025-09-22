@@ -43,14 +43,17 @@
     Private Sub InitializeComponent()
         Me.Tab1 = Me.Factory.CreateRibbonTab
         Me.Group1 = Me.Factory.CreateRibbonGroup
+        Me.btnSheetsActive = Me.Factory.CreateRibbonButton
+        Me.btnSheetsFile = Me.Factory.CreateRibbonButton
+        Me.Group2 = Me.Factory.CreateRibbonGroup
         Me.btnFilesActive = Me.Factory.CreateRibbonButton
         Me.btnFilesFile = Me.Factory.CreateRibbonButton
-        Me.btnSheetsFile = Me.Factory.CreateRibbonButton
-        Me.btnSheetsActive = Me.Factory.CreateRibbonButton
-        Me.Group2 = Me.Factory.CreateRibbonGroup
+        Me.Group3 = Me.Factory.CreateRibbonGroup
+        Me.btnApplyVacations = Me.Factory.CreateRibbonButton
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
         Me.Group2.SuspendLayout()
+        Me.Group3.SuspendLayout()
         Me.SuspendLayout()
         '
         'Tab1
@@ -58,6 +61,7 @@
         Me.Tab1.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Office
         Me.Tab1.Groups.Add(Me.Group1)
         Me.Tab1.Groups.Add(Me.Group2)
+        Me.Tab1.Groups.Add(Me.Group3)
         Me.Tab1.Label = "СКУД"
         Me.Tab1.Name = "Tab1"
         '
@@ -67,6 +71,29 @@
         Me.Group1.Items.Add(Me.btnSheetsFile)
         Me.Group1.Label = "Отделы по листам"
         Me.Group1.Name = "Group1"
+        '
+        'btnSheetsActive
+        '
+        Me.btnSheetsActive.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnSheetsActive.Label = "Активная книга"
+        Me.btnSheetsActive.Name = "btnSheetsActive"
+        Me.btnSheetsActive.OfficeImageId = "TableInsert"
+        Me.btnSheetsActive.ShowImage = True
+        '
+        'btnSheetsFile
+        '
+        Me.btnSheetsFile.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnSheetsFile.Label = "Выбрать файл"
+        Me.btnSheetsFile.Name = "btnSheetsFile"
+        Me.btnSheetsFile.OfficeImageId = "FileOpen"
+        Me.btnSheetsFile.ShowImage = True
+        '
+        'Group2
+        '
+        Me.Group2.Items.Add(Me.btnFilesActive)
+        Me.Group2.Items.Add(Me.btnFilesFile)
+        Me.Group2.Label = "Отделы по файлам"
+        Me.Group2.Name = "Group2"
         '
         'btnFilesActive
         '
@@ -84,28 +111,19 @@
         Me.btnFilesFile.OfficeImageId = "FileOpen"
         Me.btnFilesFile.ShowImage = True
         '
-        'btnSheetsFile
+        'Group3
         '
-        Me.btnSheetsFile.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
-        Me.btnSheetsFile.Label = "Выбрать файл"
-        Me.btnSheetsFile.Name = "btnSheetsFile"
-        Me.btnSheetsFile.OfficeImageId = "FileOpen"
-        Me.btnSheetsFile.ShowImage = True
+        Me.Group3.Items.Add(Me.btnApplyVacations)
+        Me.Group3.Label = "Отпуска"
+        Me.Group3.Name = "Group3"
         '
-        'btnSheetsActive
+        'btnApplyVacations
         '
-        Me.btnSheetsActive.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
-        Me.btnSheetsActive.Label = "Активная книга"
-        Me.btnSheetsActive.Name = "btnSheetsActive"
-        Me.btnSheetsActive.OfficeImageId = "TableInsert"
-        Me.btnSheetsActive.ShowImage = True
-        '
-        'Group2
-        '
-        Me.Group2.Items.Add(Me.btnFilesActive)
-        Me.Group2.Items.Add(Me.btnFilesFile)
-        Me.Group2.Label = "Отделы по файлам"
-        Me.Group2.Name = "Group2"
+        Me.btnApplyVacations.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnApplyVacations.Label = "Проставить отпуска"
+        Me.btnApplyVacations.Name = "btnApplyVacations"
+        Me.btnApplyVacations.OfficeImageId = "ColumnsDialog"
+        Me.btnApplyVacations.ShowImage = True
         '
         'Ribbon1
         '
@@ -118,6 +136,8 @@
         Me.Group1.PerformLayout()
         Me.Group2.ResumeLayout(False)
         Me.Group2.PerformLayout()
+        Me.Group3.ResumeLayout(False)
+        Me.Group3.PerformLayout()
         Me.ResumeLayout(False)
 
     End Sub
@@ -129,6 +149,8 @@
     Friend WithEvents btnSheetsFile As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents btnFilesFile As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents Group2 As Microsoft.Office.Tools.Ribbon.RibbonGroup
+    Friend WithEvents btnApplyVacations As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents Group3 As Microsoft.Office.Tools.Ribbon.RibbonGroup
 End Class
 
 Partial Class ThisRibbonCollection

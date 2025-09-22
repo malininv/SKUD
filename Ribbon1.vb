@@ -89,6 +89,30 @@ Public Class Ribbon1
         End Using
     End Sub
 
+    ' === ПРОСТАВИТЬ ОТПУСКА ===
+    Private Sub btnApplyVacations_Click(sender As Object, e As RibbonControlEventArgs) Handles btnApplyVacations.Click
+        Using dlg As New OpenFileDialog()
+            dlg.Title = "Выберите файл с отпусками"
+            dlg.Filter = "Excel книги (*.xlsx;*.xlsm;*.xls)|*.xlsx;*.xlsm;*.xls"
+            dlg.Multiselect = False
+            If dlg.ShowDialog() = DialogResult.OK Then
+                Try
+                    Dim filled As Integer = Globals.ThisAddIn.ApplyVacationsFromFile(dlg.FileName)
+                    Dim caption As String = "Проставить отпуска"
+                    Dim message As String
+                    If filled > 0 Then
+                        message = $"Готово: обновлено {filled} строк."
+                    Else
+                        message = "Совпадений не найдено."
+                    End If
+                    MessageBox.Show(message, caption, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Catch ex As Exception
+                    MessageBox.Show(ex.Message, "Проставить отпуска", MessageBoxButtons.OK, MessageBoxIcon.[Error])
+                End Try
+            End If
+        End Using
+    End Sub
+
     ' === Общее представление результата для режима «по файлам» ===
     Private Sub ShowPerDeptResult(paths As List(Of String), caption As String)
         If paths Is Nothing OrElse paths.Count = 0 Then
