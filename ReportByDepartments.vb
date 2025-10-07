@@ -591,6 +591,49 @@ Public Module ReportByDepartments
     ' Удаляет ненужные колонки из листа и переносит "ИТОГО" во вторую колонку
     Private Sub RemoveUnnecessaryColumns(ws As Excel.Worksheet)
         Try
+            ' Переименовываем колонку "Мягкие прогулы" в "Находился вне здания" и добавляем комментарий (9-я колонка)
+            Try
+                Dim headerRow As Integer = 1
+                Dim headerCell As Excel.Range = CType(ws.Cells(headerRow, 9), Excel.Range)
+                Dim headerValue As Object = GetCellValue(ws, headerRow, 9)
+
+                If Not IsNothing(headerValue) AndAlso CStr(headerValue).Contains("Мягких прогулов") Then
+                    ' Переименовываем заголовок
+                    headerCell.Value2 = "Находился вне здания"
+
+                    ' Добавляем комментарий
+                    Dim commentText As String = "Время, которое сотрудник находился вне здания в необеденное время"
+                    If headerCell.Comment IsNot Nothing Then
+                        headerCell.Comment.Delete()
+                    End If
+                    headerCell.AddComment(commentText)
+
+                    ' Расширяем размер комментария и выравниваем ширину столбца
+                    If headerCell.Comment IsNot Nothing Then
+                        headerCell.Comment.Shape.Width = 400
+                        headerCell.Comment.Shape.Height = 150
+                        headerCell.Comment.Shape.TextFrame.AutoSize = True
+
+                        ' Увеличиваем padding (отступы) для комментария
+                        With headerCell.Comment.Shape.TextFrame
+                            .MarginLeft = 10
+                            .MarginRight = 10
+                            .MarginTop = 10
+                            .MarginBottom = 10
+                        End With
+                    End If
+
+                    ' Выравниваем ширину столбца
+                    Dim columnRange As Excel.Range = CType(ws.Columns(9), Excel.Range)
+                    columnRange.AutoFit()
+                    Marshal.FinalReleaseComObject(columnRange)
+                End If
+
+                Marshal.FinalReleaseComObject(headerCell)
+            Catch ex As Exception
+                ' Игнорируем ошибки переименования
+            End Try
+
             ' Сначала переносим "ИТОГО" из первой колонки во вторую
             Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
             For r As Integer = ROW_DATA_START To lastRow
@@ -628,6 +671,7 @@ Public Module ReportByDepartments
             Dim firstCol As Excel.Range = CType(ws.Columns(1), Excel.Range)
             firstCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(firstCol)
+
 
         Catch ex As Exception
             ' Игнорируем ошибки удаления колонок
