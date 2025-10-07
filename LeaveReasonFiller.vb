@@ -170,7 +170,7 @@ Public Module LeaveReasonFiller
         End Try
     End Function
 
-    Private Function ReadDate(ws As Excel.Worksheet, row As Integer, col As Integer) As Date?
+    Public Function ReadDate(ws As Excel.Worksheet, row As Integer, col As Integer) As Date?
         Dim cell As Excel.Range = CType(ws.Cells(row, col), Excel.Range)
         Try
             Dim value As Object = cell.Value2

@@ -576,13 +576,17 @@ Public Module ReportByDepartments
             ' Получаем график работы для сотрудника из колонки "График работы"
             Dim workSchedule As String = GetWorkScheduleForEmployee(ws, row)
             If String.IsNullOrEmpty(workSchedule) Then Return
-            
+
             ' Если график стандартный (не проставлен), не анализируем
             If workSchedule = "рабочий график: 8:00-17:00" Then Return
 
+            ' Получаем дату для определения дня недели
+            Dim dayValue As Date? = LeaveReasonFiller.ReadDate(ws, row, COL_DATE)
+            Dim isFriday As Boolean = dayValue.HasValue AndAlso dayValue.Value.DayOfWeek = DayOfWeek.Friday
+
             ' Извлекаем время начала и окончания работы из графика
             Dim expectedStart As TimeSpan? = ExtractStartTimeFromSchedule(workSchedule)
-            Dim expectedEnd As TimeSpan? = ExtractEndTimeFromSchedule(workSchedule)
+            Dim expectedEnd As TimeSpan? = ExtractEndTimeFromSchedule(workSchedule, isFriday)
 
             ' Получаем объекты ячеек для анализа
             Dim startTimeObj As Object = GetCellValue(ws, row, COL_START_TIME)
@@ -616,7 +620,7 @@ Public Module ReportByDepartments
 
             ' Подсвечиваем нарушения
             If hasViolation Then
-                HighlightTimeViolations(ws, row, violationText.Trim())
+                HighlightTimeViolations(ws, row, violationText.Trim(), isFriday)
             End If
 
         Catch ex As Exception
@@ -657,10 +661,24 @@ Public Module ReportByDepartments
     End Function
 
     ' Извлекает время окончания работы из текста графика
-    Private Function ExtractEndTimeFromSchedule(scheduleText As String) As TimeSpan?
+    Private Function ExtractEndTimeFromSchedule(scheduleText As String, isFriday As Boolean) As TimeSpan?
         If String.IsNullOrEmpty(scheduleText) Then Return Nothing
 
-        ' Ищем паттерн времени: "8:00-17:00", "8-00 до 17-00", "с 8:00-17:00"
+        ' Если пятница, ищем третье время (время окончания в пятницу)
+        If isFriday Then
+            ' Ищем паттерн для пятницы: "5:00-17:00 (15:45 обед 12:15)" -> 15:45
+            ' Или "7:00-16:00(14:45, обед с 12:15)" -> 14:45
+            Dim fridayPattern As String = "\((\d{1,2})[:-]?(\d{2})"
+            Dim fridayMatch As Match = Regex.Match(scheduleText, fridayPattern)
+
+            If fridayMatch.Success Then
+                Dim hour As Integer = Integer.Parse(fridayMatch.Groups(1).Value)
+                Dim minute As Integer = Integer.Parse(fridayMatch.Groups(2).Value)
+                Return New TimeSpan(hour, minute, 0)
+            End If
+        End If
+
+        ' Для остальных дней ищем обычное время окончания: "8:00-17:00", "8-00 до 17-00", "с 8:00-17:00"
         Dim timePattern As String = "(\d{1,2})[:-]?(\d{2})\s*(?:до|-|–)\s*(\d{1,2})[:-]?(\d{2})"
         Dim match As Match = Regex.Match(scheduleText, timePattern)
 
@@ -719,43 +737,47 @@ Public Module ReportByDepartments
     End Function
 
     ' Подсвечивает нарушения времени в ячейках
-    Private Sub HighlightTimeViolations(ws As Excel.Worksheet, row As Integer, violationText As String)
+    Private Sub HighlightTimeViolations(ws As Excel.Worksheet, row As Integer, violationText As String, isFriday As Boolean)
         Try
             ' Устанавливаем светло-красный фон для нарушений
             Dim lightRed As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 200, 200))
-
+            
             ' Разделяем нарушения на опоздания и ранние уходы
             Dim hasLateArrival As Boolean = violationText.Contains("Опоздание")
             Dim hasEarlyLeave As Boolean = violationText.Contains("Ранний уход")
-
+            
             ' Подсвечиваем опоздания только в колонке "Начало дня"
             If hasLateArrival Then
                 Dim startCell As Excel.Range = CType(ws.Cells(row, COL_START_TIME), Excel.Range)
                 startCell.Interior.Color = lightRed
-
+                
                 ' Добавляем комментарий с описанием опоздания
                 Dim lateComment As String = ExtractLateArrivalText(violationText)
                 If Not String.IsNullOrEmpty(lateComment) Then
                     startCell.AddComment(lateComment)
                 End If
-
+                
                 Marshal.FinalReleaseComObject(startCell)
             End If
-
+            
             ' Подсвечиваем ранние уходы только в колонке "Конец дня"
             If hasEarlyLeave Then
                 Dim endCell As Excel.Range = CType(ws.Cells(row, COL_END_TIME), Excel.Range)
                 endCell.Interior.Color = lightRed
-
+                
                 ' Добавляем комментарий с описанием раннего ухода
                 Dim earlyComment As String = ExtractEarlyLeaveText(violationText)
                 If Not String.IsNullOrEmpty(earlyComment) Then
+                    ' Если пятница, добавляем информацию о дне недели
+                    If isFriday Then
+                        earlyComment += " (пятница)"
+                    End If
                     endCell.AddComment(earlyComment)
                 End If
-
+                
                 Marshal.FinalReleaseComObject(endCell)
             End If
-
+            
         Catch ex As Exception
             ' Игнорируем ошибки подсветки
         End Try
@@ -788,5 +810,6 @@ Public Module ReportByDepartments
 
         Return String.Empty
     End Function
+
 
 End Module
