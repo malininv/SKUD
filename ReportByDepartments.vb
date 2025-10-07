@@ -141,6 +141,11 @@ Public Module ReportByDepartments
                 End If
             Next
 
+            ' Удаляем ненужные колонки из всех листов перед сохранением
+            For Each ws As Excel.Worksheet In wbNew.Sheets
+                RemoveUnnecessaryColumns(ws)
+            Next
+
             SortSheetsAlphabetically(wbNew)
             app.StatusBar = $"Готово! Файл сохранён: {newName}"
             srcWb.Activate()
@@ -294,6 +299,12 @@ Public Module ReportByDepartments
             ' Finalize: sort sheets and close dept workbooks
             For Each kv In deptToWb
                 Dim wbDept As Excel.Workbook = kv.Value
+                
+                ' Удаляем ненужные колонки из всех листов перед сохранением
+                For Each ws As Excel.Worksheet In wbDept.Sheets
+                    RemoveUnnecessaryColumns(ws)
+                Next
+                
                 SortSheetsAlphabetically(wbDept)
                 wbDept.Save()
                 wbDept.Close(SaveChanges:=False)
@@ -438,6 +449,53 @@ Public Module ReportByDepartments
             Runtime.InteropServices.Marshal.FinalReleaseComObject(borders)
             Runtime.InteropServices.Marshal.FinalReleaseComObject(rngAll)
         End If
+
+    End Sub
+
+    ' Удаляет ненужные колонки из листа и переносит "ИТОГО" во вторую колонку
+    Private Sub RemoveUnnecessaryColumns(ws As Excel.Worksheet)
+        Try
+            ' Сначала переносим "ИТОГО" из первой колонки во вторую
+            Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+            For r As Integer = ROW_DATA_START To lastRow
+                Dim markerObj As Object = GetCellValue(ws, r, 1) ' Первая колонка
+                If Not IsNothing(markerObj) AndAlso String.Equals(CStr(markerObj), "ИТОГО", StringComparison.CurrentCultureIgnoreCase) Then
+                    ' Копируем "ИТОГО" во вторую колонку
+                    Dim targetCell As Excel.Range = CType(ws.Cells(r, 2), Excel.Range)
+                    targetCell.Value2 = "ИТОГО"
+                    Marshal.FinalReleaseComObject(targetCell)
+                    
+                    ' Очищаем первую колонку
+                    Dim sourceCell As Excel.Range = CType(ws.Cells(r, 1), Excel.Range)
+                    sourceCell.Value2 = ""
+                    Marshal.FinalReleaseComObject(sourceCell)
+                End If
+            Next
+            
+            ' Удаляем колонки в обратном порядке, чтобы не сбить нумерацию
+            ' Удаляем "Работа в праздничные дни" (12-я колонка)
+            Dim holidayCol As Excel.Range = CType(ws.Columns(12), Excel.Range)
+            holidayCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(holidayCol)
+            
+            ' Удаляем "Прогулял" (8-я колонка)
+            Dim absentCol As Excel.Range = CType(ws.Columns(8), Excel.Range)
+            absentCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(absentCol)
+            
+            ' Удаляем "Таб #" (5-я колонка)
+            Dim tabCol As Excel.Range = CType(ws.Columns(5), Excel.Range)
+            tabCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(tabCol)
+            
+            ' Удаляем первую колонку (теперь пустую)
+            Dim firstCol As Excel.Range = CType(ws.Columns(1), Excel.Range)
+            firstCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(firstCol)
+            
+        Catch ex As Exception
+            ' Игнорируем ошибки удаления колонок
+        End Try
     End Sub
 
     Private Function CreateOrGetSheet(wb As Excel.Workbook, baseName As String) As Excel.Worksheet
