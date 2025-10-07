@@ -299,12 +299,12 @@ Public Module ReportByDepartments
             ' Finalize: sort sheets and close dept workbooks
             For Each kv In deptToWb
                 Dim wbDept As Excel.Workbook = kv.Value
-                
+
                 ' Удаляем ненужные колонки из всех листов перед сохранением
                 For Each ws As Excel.Worksheet In wbDept.Sheets
                     RemoveUnnecessaryColumns(ws)
                 Next
-                
+
                 SortSheetsAlphabetically(wbDept)
                 wbDept.Save()
                 wbDept.Close(SaveChanges:=False)
@@ -355,6 +355,8 @@ Public Module ReportByDepartments
         Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
         Dim paleYellow As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 255, 204)) ' #FFFFCC
         Dim red As Integer = ColorTranslator.ToOle(Color.Red)
+
+        ' Сначала удаляем выходные строки
         For r As Integer = lastRow To 2 Step -1
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
@@ -363,6 +365,15 @@ Public Module ReportByDepartments
                 CType(ws.Rows(r), Excel.Range).Delete(Excel.XlDeleteShiftDirection.xlShiftUp)
                 Continue For
             End If
+        Next
+
+        ' Теперь обрабатываем оставшиеся строки
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+
+        ' ПЕРВЫЙ ЭТАП: Обработка всех строк (окрашивание, анализ времени, установка 0)
+        For r As Integer = lastRow To 2 Step -1
+            Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
+            Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
 
             'красим 0 проходы
             If IsZeroTime(timeVal) Then
@@ -376,12 +387,137 @@ Public Module ReportByDepartments
             ' Анализируем время прихода/ухода только для рабочих дней и не для строк ИТОГО
             If Not IsWeekend(dateVal) AndAlso Not StringEquals(ws.Cells(r, COL_MARKER).Value2, "ИТОГО") Then
                 AnalyzeWorkTimeViolations(ws, r)
-            End If
 
-            ' --- Окраска "Фактическая переработка" ТОЛЬКО для строки ИТОГО (13-й столбец) ---
+                ' Проверяем, есть ли вход и выход для сотрудника
+                Dim startTime As String = CStr(GetCellValue(ws, r, COL_START_TIME))
+                Dim endTime As String = CStr(GetCellValue(ws, r, COL_END_TIME))
+
+                ' Если нет входа или выхода, ставим 0 в фактическую переработку
+                If String.IsNullOrEmpty(startTime) OrElse String.IsNullOrEmpty(endTime) OrElse
+                   startTime.Contains("Нет входа") OrElse endTime.Contains("Нет выход") Then
+                    Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                    overtimeCell.Value2 = 0
+                    Marshal.FinalReleaseComObject(overtimeCell)
+
+                    ' Отладка: логируем установку 0 (без модального окна)
+                    ' MessageBox.Show($"Строка {r}: установлен 0 для 'Нет входа/выхода'. StartTime: '{startTime}', EndTime: '{endTime}'", "Отладка", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                End If
+            End If
+        Next
+
+        ' ВТОРОЙ ЭТАП: Суммирование для строк ИТОГО
+        For r As Integer = lastRow To 2 Step -1
+
+            ' --- Обработка "Фактическая переработка" ТОЛЬКО для строки ИТОГО (13-й столбец) ---
             Dim marker As Object = ws.Cells(r, COL_MARKER).Value2
             If Not IsNothing(marker) AndAlso String.Equals(CStr(marker), "ИТОГО", StringComparison.CurrentCultureIgnoreCase) Then
+
+                ' Добавляем формулу для пересчета фактической переработки по сотруднику
                 Dim ocell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range) ' 13-й столбец
+
+                ' Ищем начало блока сотрудника (предыдущая строка ИТОГО + 1)
+                Dim formulaStartRow As Integer = r - 1
+                While formulaStartRow > 1 AndAlso Not StringEquals(ws.Cells(formulaStartRow, COL_MARKER).Value2, "ИТОГО")
+                    formulaStartRow -= 1
+                End While
+
+                ' Если нашли предыдущую строку ИТОГО, начинаем с следующей строки
+                If StringEquals(ws.Cells(formulaStartRow, COL_MARKER).Value2, "ИТОГО") Then
+                    formulaStartRow += 1
+                End If
+
+                ' Исправляем логику: если не нашли предыдущий ИТОГО, начинаем с первой строки данных
+                If formulaStartRow <= 1 Then
+                    formulaStartRow = 2 ' Первая строка данных после заголовка
+                End If
+
+                ' Информация о диапазоне для комментария
+                Dim rangeInfo As String = $"ИТОГО строка: {r}, Начало блока: {formulaStartRow}, Конец: {r - 1}"
+
+                ' Проверяем, что есть строки для суммирования
+                If formulaStartRow < r - 1 Then
+                    ' Считаем сумму программно
+                    Dim totalHours As Double = 0
+                    Dim debugValues As New List(Of String)
+
+                    For row As Integer = formulaStartRow To r - 1
+                        Dim cellValue As Object = GetCellValue(ws, row, COL_OVERTIME)
+                        If cellValue IsNot Nothing Then
+                            ' Пробуем преобразовать в число разными способами
+                            Dim numericValue As Double = 0
+                            If IsNumeric(cellValue) Then
+                                numericValue = CDbl(cellValue)
+                                debugValues.Add($"Строка {row}: {cellValue} (число) -> {numericValue}")
+                            Else
+                                ' Пробуем преобразовать текст времени в число
+                                Dim timeStr As String = cellValue.ToString()
+                                If timeStr.Contains(":") Then
+                                    Try
+                                        ' Парсим время в формате "h:mm" или "-h:mm"
+                                        Dim isNegative As Boolean = timeStr.StartsWith("-")
+                                        If isNegative Then timeStr = timeStr.Substring(1)
+
+                                        Dim parts() As String = timeStr.Split(":"c)
+                                        If parts.Length = 2 Then
+                                            Dim timeHours As Integer = Integer.Parse(parts(0))
+                                            Dim timeMinutes As Integer = Integer.Parse(parts(1))
+                                            numericValue = (timeHours + timeMinutes / 60.0) / 24.0 ' Конвертируем в дни Excel
+                                            If isNegative Then numericValue = -numericValue
+                                            debugValues.Add($"Строка {row}: {cellValue} (текст) -> {numericValue}")
+                                        End If
+                                    Catch
+                                        debugValues.Add($"Строка {row}: {cellValue} (ошибка парсинга)")
+                                    End Try
+                                Else
+                                    debugValues.Add($"Строка {row}: {cellValue} (не время)")
+                                End If
+                            End If
+                            totalHours += numericValue
+                        Else
+                            debugValues.Add($"Строка {row}: пустое значение")
+                        End If
+                    Next
+
+                    ' Устанавливаем вычисленное значение в текстовом формате
+                    Dim absHours As Double = Math.Abs(totalHours)
+                    Dim totalMinutes As Integer = CInt(absHours * 24 * 60)
+                    Dim resultHours As Integer = totalMinutes \ 60
+                    Dim resultMinutes As Integer = totalMinutes Mod 60
+
+                    If totalHours < 0 Then
+                        ocell.Value2 = $"-{resultHours}:{resultMinutes:D2}"
+                    Else
+                        ocell.Value2 = $"{resultHours}:{resultMinutes:D2}"
+                    End If
+                    ocell.NumberFormat = "@" ' Текстовый формат для всех значений
+
+                    ' Добавляем комментарий с информацией о диапазоне
+                    Try
+                        Dim commentText As String = $"Диапазон суммирования: строки {formulaStartRow} - {r - 1}" & Environment.NewLine & rangeInfo & Environment.NewLine & "Итого: " & totalHours.ToString("F6")
+                        If debugValues.Count > 0 Then
+                            commentText &= Environment.NewLine & "Значения:" & Environment.NewLine & String.Join(Environment.NewLine, debugValues)
+                        End If
+                        ' Удаляем существующий комментарий, если есть
+                        If ocell.Comment IsNot Nothing Then
+                            ocell.Comment.Delete()
+                        End If
+                        ' Добавляем новый комментарий
+                        ocell.AddComment(commentText)
+
+                        ' Расширяем размер комментария для лучшей видимости
+                        If ocell.Comment IsNot Nothing Then
+                            ocell.Comment.Shape.Width = 400
+                            ocell.Comment.Shape.Height = 300
+                            ocell.Comment.Shape.TextFrame.AutoSize = True
+                        End If
+                    Catch ex As Exception
+                        ' Игнорируем ошибки с комментариями
+                    End Try
+                Else
+                    ' Если нет строк для суммирования, ставим 0
+                    ocell.Value2 = "0:00"
+                    ocell.NumberFormat = "@" ' Текстовый формат
+                End If
                 Dim ov As Object = ocell.Value2
 
                 Dim hours As Double
@@ -464,35 +600,35 @@ Public Module ReportByDepartments
                     Dim targetCell As Excel.Range = CType(ws.Cells(r, 2), Excel.Range)
                     targetCell.Value2 = "ИТОГО"
                     Marshal.FinalReleaseComObject(targetCell)
-                    
+
                     ' Очищаем первую колонку
                     Dim sourceCell As Excel.Range = CType(ws.Cells(r, 1), Excel.Range)
                     sourceCell.Value2 = ""
                     Marshal.FinalReleaseComObject(sourceCell)
                 End If
             Next
-            
+
             ' Удаляем колонки в обратном порядке, чтобы не сбить нумерацию
             ' Удаляем "Работа в праздничные дни" (12-я колонка)
             Dim holidayCol As Excel.Range = CType(ws.Columns(12), Excel.Range)
             holidayCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(holidayCol)
-            
+
             ' Удаляем "Прогулял" (8-я колонка)
             Dim absentCol As Excel.Range = CType(ws.Columns(8), Excel.Range)
             absentCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(absentCol)
-            
+
             ' Удаляем "Таб #" (5-я колонка)
             Dim tabCol As Excel.Range = CType(ws.Columns(5), Excel.Range)
             tabCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(tabCol)
-            
+
             ' Удаляем первую колонку (теперь пустую)
             Dim firstCol As Excel.Range = CType(ws.Columns(1), Excel.Range)
             firstCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(firstCol)
-            
+
         Catch ex As Exception
             ' Игнорируем ошибки удаления колонок
         End Try
@@ -799,30 +935,30 @@ Public Module ReportByDepartments
         Try
             ' Устанавливаем светло-красный фон для нарушений
             Dim lightRed As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 200, 200))
-            
+
             ' Разделяем нарушения на опоздания и ранние уходы
             Dim hasLateArrival As Boolean = violationText.Contains("Опоздание")
             Dim hasEarlyLeave As Boolean = violationText.Contains("Ранний уход")
-            
+
             ' Подсвечиваем опоздания только в колонке "Начало дня"
             If hasLateArrival Then
                 Dim startCell As Excel.Range = CType(ws.Cells(row, COL_START_TIME), Excel.Range)
                 startCell.Interior.Color = lightRed
-                
+
                 ' Добавляем комментарий с описанием опоздания
                 Dim lateComment As String = ExtractLateArrivalText(violationText)
                 If Not String.IsNullOrEmpty(lateComment) Then
                     startCell.AddComment(lateComment)
                 End If
-                
+
                 Marshal.FinalReleaseComObject(startCell)
             End If
-            
+
             ' Подсвечиваем ранние уходы только в колонке "Конец дня"
             If hasEarlyLeave Then
                 Dim endCell As Excel.Range = CType(ws.Cells(row, COL_END_TIME), Excel.Range)
                 endCell.Interior.Color = lightRed
-                
+
                 ' Добавляем комментарий с описанием раннего ухода
                 Dim earlyComment As String = ExtractEarlyLeaveText(violationText)
                 If Not String.IsNullOrEmpty(earlyComment) Then
@@ -832,10 +968,10 @@ Public Module ReportByDepartments
                     End If
                     endCell.AddComment(earlyComment)
                 End If
-                
+
                 Marshal.FinalReleaseComObject(endCell)
             End If
-            
+
         Catch ex As Exception
             ' Игнорируем ошибки подсветки
         End Try
