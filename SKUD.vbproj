@@ -235,6 +235,7 @@
     <AppDesigner Include="My Project\" />
     <Compile Include="ReportByDepartments.vb" />
     <Compile Include="LeaveReasonFiller.vb" />
+    <Compile Include="WorkScheduleFiller.vb" />
     <Compile Include="Ribbon1.Designer.vb">
       <DependentUpon>Ribbon1.vb</DependentUpon>
     </Compile>

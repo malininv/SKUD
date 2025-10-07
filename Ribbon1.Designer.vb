@@ -50,6 +50,7 @@
         Me.btnFilesFile = Me.Factory.CreateRibbonButton
         Me.Group3 = Me.Factory.CreateRibbonGroup
         Me.btnApplyVacations = Me.Factory.CreateRibbonButton
+        Me.btnApplyWorkSchedules = Me.Factory.CreateRibbonButton
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
         Me.Group2.SuspendLayout()
@@ -114,6 +115,7 @@
         'Group3
         '
         Me.Group3.Items.Add(Me.btnApplyVacations)
+        Me.Group3.Items.Add(Me.btnApplyWorkSchedules)
         Me.Group3.Label = "Отпуска"
         Me.Group3.Name = "Group3"
         '
@@ -124,6 +126,14 @@
         Me.btnApplyVacations.Name = "btnApplyVacations"
         Me.btnApplyVacations.OfficeImageId = "ColumnsDialog"
         Me.btnApplyVacations.ShowImage = True
+        '
+        'btnApplyWorkSchedules
+        '
+        Me.btnApplyWorkSchedules.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnApplyWorkSchedules.Label = "Графики работы"
+        Me.btnApplyWorkSchedules.Name = "btnApplyWorkSchedules"
+        Me.btnApplyWorkSchedules.OfficeImageId = "Calendar"
+        Me.btnApplyWorkSchedules.ShowImage = True
         '
         'Ribbon1
         '
@@ -150,6 +160,7 @@
     Friend WithEvents btnFilesFile As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents Group2 As Microsoft.Office.Tools.Ribbon.RibbonGroup
     Friend WithEvents btnApplyVacations As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnApplyWorkSchedules As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents Group3 As Microsoft.Office.Tools.Ribbon.RibbonGroup
 End Class
 

@@ -41,4 +41,8 @@ Public Class ThisAddIn
         Return LeaveReasonFiller.ApplyLeaveReasons(Me.Application, leavesPath)
     End Function
 
+    Public Function ApplyWorkSchedulesFromFile(schedulesPath As String) As Integer
+        Return WorkScheduleFiller.ApplyWorkSchedules(Me.Application, schedulesPath)
+    End Function
+
 End Class
