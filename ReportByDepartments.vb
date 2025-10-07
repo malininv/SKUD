@@ -20,6 +20,8 @@ Imports System.IO
 Imports System.Drawing
 Imports System.Globalization
 Imports System.Collections.Generic
+Imports System.Text.RegularExpressions
+Imports System.Windows.Forms
 
 Public Module ReportByDepartments
 
@@ -27,8 +29,11 @@ Public Module ReportByDepartments
     Private Const ROW_DATA_START As Integer = 6
     Private Const COL_MARKER As Integer = 1 ' A — "ИТОГО"
     Private Const COL_DEPT As Integer = 2   ' B — отдел (первая строка блока)
+    Private Const COL_EMPLOYEE As Integer = 3 ' C — ФИО сотрудника
     Private Const COL_DATE As Integer = 6   ' F — дата
     Private Const COL_TIME As Integer = 7   ' G — время
+    Private Const COL_START_TIME As Integer = 10 ' J — "Начало дня"
+    Private Const COL_END_TIME As Integer = 11   ' K — "Конец дня"
     Private Const COL_OVERTIME As Integer = 13 ' "Фактическая переработка"
 
     ' ====================== SHEETS MODE (one workbook with many sheets) ======================
@@ -356,6 +361,12 @@ Public Module ReportByDepartments
                 Marshal.FinalReleaseComObject(tcell)
             End If
 
+            ' ==================== АНАЛИЗ ОПОЗДАНИЙ И РАННИХ УХОДОВ ====================
+            ' Анализируем время прихода/ухода только для рабочих дней и не для строк ИТОГО
+            If Not IsWeekend(dateVal) AndAlso Not StringEquals(ws.Cells(r, COL_MARKER).Value2, "ИТОГО") Then
+                AnalyzeWorkTimeViolations(ws, r)
+            End If
+
             ' --- Окраска "Фактическая переработка" ТОЛЬКО для строки ИТОГО (13-й столбец) ---
             Dim marker As Object = ws.Cells(r, COL_MARKER).Value2
             If Not IsNothing(marker) AndAlso String.Equals(CStr(marker), "ИТОГО", StringComparison.CurrentCultureIgnoreCase) Then
@@ -544,6 +555,238 @@ Public Module ReportByDepartments
         End While
         If String.IsNullOrWhiteSpace(name) Then name = "Отчет"
         Return name
+    End Function
+
+    ' ==================== АНАЛИЗ ОПОЗДАНИЙ И РАННИХ УХОДОВ ====================
+    ' Анализирует время прихода/ухода и подсвечивает нарушения
+    Private Sub AnalyzeWorkTimeViolations(ws As Excel.Worksheet, row As Integer)
+        Try
+            ' Читаем ФИО сотрудника
+            Dim fio As String = CStr(GetCellValue(ws, row, COL_EMPLOYEE))
+            If String.IsNullOrEmpty(fio) Then Return
+
+            ' Читаем время прихода и ухода
+            Dim startTime As String = CStr(GetCellValue(ws, row, COL_START_TIME))
+            Dim endTime As String = CStr(GetCellValue(ws, row, COL_END_TIME))
+
+            ' Пропускаем если нет данных о времени
+            If String.IsNullOrEmpty(startTime) AndAlso String.IsNullOrEmpty(endTime) Then Return
+            If startTime.Contains("Нет входа") AndAlso endTime.Contains("Нет выход") Then Return
+
+            ' Получаем график работы для сотрудника из колонки "График работы"
+            Dim workSchedule As String = GetWorkScheduleForEmployee(ws, row)
+            If String.IsNullOrEmpty(workSchedule) Then Return
+            
+            ' Если график стандартный (не проставлен), не анализируем
+            If workSchedule = "рабочий график: 8:00-17:00" Then Return
+
+            ' Извлекаем время начала и окончания работы из графика
+            Dim expectedStart As TimeSpan? = ExtractStartTimeFromSchedule(workSchedule)
+            Dim expectedEnd As TimeSpan? = ExtractEndTimeFromSchedule(workSchedule)
+
+            ' Получаем объекты ячеек для анализа
+            Dim startTimeObj As Object = GetCellValue(ws, row, COL_START_TIME)
+            Dim endTimeObj As Object = GetCellValue(ws, row, COL_END_TIME)
+
+
+            Dim hasViolation As Boolean = False
+            Dim violationText As String = ""
+
+            ' Анализ времени прихода
+            If Not String.IsNullOrEmpty(startTime) AndAlso Not startTime.Contains("Нет входа") AndAlso expectedStart.HasValue Then
+                Dim actualStart As TimeSpan? = ParseTimeFromCellValue(startTimeObj)
+
+                If actualStart.HasValue AndAlso actualStart.Value > expectedStart.Value Then
+                    Dim delay As TimeSpan = actualStart.Value - expectedStart.Value
+                    violationText += $"Опоздание: {delay.Hours}ч {delay.Minutes}м. "
+                    hasViolation = True
+                End If
+            End If
+
+            ' Анализ времени ухода
+            If Not String.IsNullOrEmpty(endTime) AndAlso Not endTime.Contains("Нет выход") AndAlso expectedEnd.HasValue Then
+                Dim actualEnd As TimeSpan? = ParseTimeFromCellValue(endTimeObj)
+
+                If actualEnd.HasValue AndAlso actualEnd.Value < expectedEnd.Value Then
+                    Dim earlyLeave As TimeSpan = expectedEnd.Value - actualEnd.Value
+                    violationText += $"Ранний уход: {earlyLeave.Hours}ч {earlyLeave.Minutes}м. "
+                    hasViolation = True
+                End If
+            End If
+
+            ' Подсвечиваем нарушения
+            If hasViolation Then
+                HighlightTimeViolations(ws, row, violationText.Trim())
+            End If
+
+        Catch ex As Exception
+            ' Игнорируем ошибки анализа времени
+        End Try
+    End Sub
+
+    ' Получает график работы для сотрудника из 15-й колонки
+    Private Function GetWorkScheduleForEmployee(ws As Excel.Worksheet, row As Integer) As String
+        ' Всегда читаем из 15-й колонки (колонка O)
+        Const SCHEDULE_COLUMN As Integer = 15
+
+        Dim scheduleText As String = CStr(GetCellValue(ws, row, SCHEDULE_COLUMN))
+
+        If Not String.IsNullOrEmpty(scheduleText) Then
+            Return scheduleText
+        End If
+
+        ' Если график работы пустой, возвращаем стандартный
+        Return "рабочий график: 8:00-17:00"
+    End Function
+
+    ' Извлекает время начала работы из текста графика
+    Private Function ExtractStartTimeFromSchedule(scheduleText As String) As TimeSpan?
+        If String.IsNullOrEmpty(scheduleText) Then Return Nothing
+
+        ' Ищем паттерн времени: "8:00-17:00", "8-00 до 17-00", "с 8:00-17:00"
+        Dim timePattern As String = "(\d{1,2})[:-]?(\d{2})\s*(?:до|-|–)\s*(\d{1,2})[:-]?(\d{2})"
+        Dim match As Match = Regex.Match(scheduleText, timePattern)
+
+        If match.Success Then
+            Dim hour As Integer = Integer.Parse(match.Groups(1).Value)
+            Dim minute As Integer = Integer.Parse(match.Groups(2).Value)
+            Return New TimeSpan(hour, minute, 0)
+        End If
+
+        Return Nothing
+    End Function
+
+    ' Извлекает время окончания работы из текста графика
+    Private Function ExtractEndTimeFromSchedule(scheduleText As String) As TimeSpan?
+        If String.IsNullOrEmpty(scheduleText) Then Return Nothing
+
+        ' Ищем паттерн времени: "8:00-17:00", "8-00 до 17-00", "с 8:00-17:00"
+        Dim timePattern As String = "(\d{1,2})[:-]?(\d{2})\s*(?:до|-|–)\s*(\d{1,2})[:-]?(\d{2})"
+        Dim match As Match = Regex.Match(scheduleText, timePattern)
+
+        If match.Success Then
+            Dim hour As Integer = Integer.Parse(match.Groups(3).Value)
+            Dim minute As Integer = Integer.Parse(match.Groups(4).Value)
+            Return New TimeSpan(hour, minute, 0)
+        End If
+
+        Return Nothing
+    End Function
+
+    ' Парсит время из объекта ячейки Excel (поддерживает числовые значения и текст)
+    Private Function ParseTimeFromCellValue(cellValue As Object) As TimeSpan?
+        If cellValue Is Nothing Then Return Nothing
+
+        ' Если это число (формат Excel)
+        If TypeOf cellValue Is Double Then
+            Dim doubleValue As Double = CDbl(cellValue)
+            ' Excel хранит время как долю дня (0.5 = 12:00, 0.25 = 6:00)
+            If doubleValue >= 0 AndAlso doubleValue <= 1 Then
+                Dim totalMinutes As Integer = CInt(doubleValue * 24 * 60)
+                Dim hours As Integer = totalMinutes \ 60
+                Dim minutes As Integer = totalMinutes Mod 60
+                Return New TimeSpan(hours, minutes, 0)
+            End If
+        End If
+
+        ' Если это строка, пробуем распарсить как текст
+        Dim timeValue As String = cellValue.ToString()
+        If String.IsNullOrEmpty(timeValue) Then Return Nothing
+
+        ' Сначала пробуем распарсить как число (формат Excel)
+        Dim numericValue As Double
+        If Double.TryParse(timeValue, numericValue) Then
+            ' Excel хранит время как долю дня (0.5 = 12:00, 0.25 = 6:00)
+            If numericValue >= 0 AndAlso numericValue <= 1 Then
+                Dim totalMinutes As Integer = CInt(numericValue * 24 * 60)
+                Dim hours As Integer = totalMinutes \ 60
+                Dim minutes As Integer = totalMinutes Mod 60
+                Return New TimeSpan(hours, minutes, 0)
+            End If
+        End If
+
+        ' Если не число, пробуем распарсить как текст: "8:30", "08:30", "8-30"
+        Dim timePattern As String = "(\d{1,2})[:-](\d{2})"
+        Dim match As Match = Regex.Match(timeValue, timePattern)
+
+        If match.Success Then
+            Dim hour As Integer = Integer.Parse(match.Groups(1).Value)
+            Dim minute As Integer = Integer.Parse(match.Groups(2).Value)
+            Return New TimeSpan(hour, minute, 0)
+        End If
+
+        Return Nothing
+    End Function
+
+    ' Подсвечивает нарушения времени в ячейках
+    Private Sub HighlightTimeViolations(ws As Excel.Worksheet, row As Integer, violationText As String)
+        Try
+            ' Устанавливаем светло-красный фон для нарушений
+            Dim lightRed As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 200, 200))
+
+            ' Разделяем нарушения на опоздания и ранние уходы
+            Dim hasLateArrival As Boolean = violationText.Contains("Опоздание")
+            Dim hasEarlyLeave As Boolean = violationText.Contains("Ранний уход")
+
+            ' Подсвечиваем опоздания только в колонке "Начало дня"
+            If hasLateArrival Then
+                Dim startCell As Excel.Range = CType(ws.Cells(row, COL_START_TIME), Excel.Range)
+                startCell.Interior.Color = lightRed
+
+                ' Добавляем комментарий с описанием опоздания
+                Dim lateComment As String = ExtractLateArrivalText(violationText)
+                If Not String.IsNullOrEmpty(lateComment) Then
+                    startCell.AddComment(lateComment)
+                End If
+
+                Marshal.FinalReleaseComObject(startCell)
+            End If
+
+            ' Подсвечиваем ранние уходы только в колонке "Конец дня"
+            If hasEarlyLeave Then
+                Dim endCell As Excel.Range = CType(ws.Cells(row, COL_END_TIME), Excel.Range)
+                endCell.Interior.Color = lightRed
+
+                ' Добавляем комментарий с описанием раннего ухода
+                Dim earlyComment As String = ExtractEarlyLeaveText(violationText)
+                If Not String.IsNullOrEmpty(earlyComment) Then
+                    endCell.AddComment(earlyComment)
+                End If
+
+                Marshal.FinalReleaseComObject(endCell)
+            End If
+
+        Catch ex As Exception
+            ' Игнорируем ошибки подсветки
+        End Try
+    End Sub
+
+    ' Извлекает текст опоздания из общего текста нарушений
+    Private Function ExtractLateArrivalText(violationText As String) As String
+        If String.IsNullOrEmpty(violationText) Then Return String.Empty
+
+        Dim parts() As String = violationText.Split("."c)
+        For Each part In parts
+            If part.Trim().StartsWith("Опоздание") Then
+                Return part.Trim() & "."
+            End If
+        Next
+
+        Return String.Empty
+    End Function
+
+    ' Извлекает текст раннего ухода из общего текста нарушений
+    Private Function ExtractEarlyLeaveText(violationText As String) As String
+        If String.IsNullOrEmpty(violationText) Then Return String.Empty
+
+        Dim parts() As String = violationText.Split("."c)
+        For Each part In parts
+            If part.Trim().StartsWith("Ранний уход") Then
+                Return part.Trim() & "."
+            End If
+        Next
+
+        Return String.Empty
     End Function
 
 End Module

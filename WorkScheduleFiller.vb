@@ -145,6 +145,7 @@ Public Module WorkScheduleFiller
         Return schedule.OriginalText
     End Function
 
+
     Private Function EnsureReasonColumn(ws As Excel.Worksheet) As Integer
         Dim lastHeaderCol As Integer = ws.Cells(HEADER_ROW, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
         For col As Integer = 1 To lastHeaderCol
