@@ -59,7 +59,8 @@
         '
         'Tab1
         '
-        Me.Tab1.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Office
+        Me.Tab1.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Custom
+        Me.Tab1.ControlId.ControlId = "SKUDTab"
         Me.Tab1.Groups.Add(Me.Group1)
         Me.Tab1.Groups.Add(Me.Group2)
         Me.Tab1.Groups.Add(Me.Group3)
@@ -68,6 +69,8 @@
         '
         'Group1
         '
+        Me.Group1.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Custom
+        Me.Group1.ControlId.ControlId = "SKUDGroup1"
         Me.Group1.Items.Add(Me.btnSheetsActive)
         Me.Group1.Items.Add(Me.btnSheetsFile)
         Me.Group1.Label = "Отделы по листам"
@@ -91,6 +94,8 @@
         '
         'Group2
         '
+        Me.Group2.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Custom
+        Me.Group2.ControlId.ControlId = "SKUDGroup2"
         Me.Group2.Items.Add(Me.btnFilesActive)
         Me.Group2.Items.Add(Me.btnFilesFile)
         Me.Group2.Label = "Отделы по файлам"
@@ -114,6 +119,8 @@
         '
         'Group3
         '
+        Me.Group3.ControlId.ControlIdType = Microsoft.Office.Tools.Ribbon.RibbonControlIdType.Custom
+        Me.Group3.ControlId.ControlId = "SKUDGroup3"
         Me.Group3.Items.Add(Me.btnApplyVacations)
         Me.Group3.Items.Add(Me.btnApplyWorkSchedules)
         Me.Group3.Label = "Отпуска"
@@ -132,7 +139,7 @@
         Me.btnApplyWorkSchedules.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
         Me.btnApplyWorkSchedules.Label = "Графики работы"
         Me.btnApplyWorkSchedules.Name = "btnApplyWorkSchedules"
-        Me.btnApplyWorkSchedules.OfficeImageId = "Calendar"
+        Me.btnApplyWorkSchedules.OfficeImageId = "ColumnsDialog"
         Me.btnApplyWorkSchedules.ShowImage = True
         '
         'Ribbon1
