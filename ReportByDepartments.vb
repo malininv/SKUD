@@ -405,8 +405,6 @@ Public Module ReportByDepartments
                     overtimeCell.Value2 = 0
                     Marshal.FinalReleaseComObject(overtimeCell)
 
-                    ' Отладка: логируем установку 0 (без модального окна)
-                    ' MessageBox.Show($"Строка {r}: установлен 0 для 'Нет входа/выхода'. StartTime: '{startTime}', EndTime: '{endTime}'", "Отладка", MessageBoxButtons.OK, MessageBoxIcon.Information)
                 End If
             End If
         Next
@@ -437,14 +435,11 @@ Public Module ReportByDepartments
                     formulaStartRow = 2 ' Первая строка данных после заголовка
                 End If
 
-                ' Информация о диапазоне для комментария
-                Dim rangeInfo As String = $"ИТОГО строка: {r}, Начало блока: {formulaStartRow}, Конец: {r - 1}"
 
                 ' Проверяем, что есть строки для суммирования
                 If formulaStartRow < r - 1 Then
                     ' Считаем сумму программно
                     Dim totalHours As Double = 0
-                    Dim debugValues As New List(Of String)
 
                     For row As Integer = formulaStartRow To r - 1
                         Dim cellValue As Object = GetCellValue(ws, row, COL_OVERTIME)
@@ -453,7 +448,6 @@ Public Module ReportByDepartments
                             Dim numericValue As Double = 0
                             If IsNumeric(cellValue) Then
                                 numericValue = CDbl(cellValue)
-                                debugValues.Add($"Строка {row}: {cellValue} (число) -> {numericValue}")
                             Else
                                 ' Пробуем преобразовать текст времени в число
                                 Dim timeStr As String = cellValue.ToString()
@@ -469,18 +463,13 @@ Public Module ReportByDepartments
                                             Dim timeMinutes As Integer = Integer.Parse(parts(1))
                                             numericValue = (timeHours + timeMinutes / 60.0) / 24.0 ' Конвертируем в дни Excel
                                             If isNegative Then numericValue = -numericValue
-                                            debugValues.Add($"Строка {row}: {cellValue} (текст) -> {numericValue}")
                                         End If
                                     Catch
-                                        debugValues.Add($"Строка {row}: {cellValue} (ошибка парсинга)")
+                                        ' Игнорируем ошибки парсинга
                                     End Try
-                                Else
-                                    debugValues.Add($"Строка {row}: {cellValue} (не время)")
                                 End If
                             End If
                             totalHours += numericValue
-                        Else
-                            debugValues.Add($"Строка {row}: пустое значение")
                         End If
                     Next
 
@@ -497,28 +486,6 @@ Public Module ReportByDepartments
                     End If
                     ocell.NumberFormat = "@" ' Текстовый формат для всех значений
 
-                    ' Добавляем комментарий с информацией о диапазоне
-                    Try
-                        Dim commentText As String = $"Диапазон суммирования: строки {formulaStartRow} - {r - 1}" & Environment.NewLine & rangeInfo & Environment.NewLine & "Итого: " & totalHours.ToString("F6")
-                        If debugValues.Count > 0 Then
-                            commentText &= Environment.NewLine & "Значения:" & Environment.NewLine & String.Join(Environment.NewLine, debugValues)
-                        End If
-                        ' Удаляем существующий комментарий, если есть
-                        If ocell.Comment IsNot Nothing Then
-                            ocell.Comment.Delete()
-                        End If
-                        ' Добавляем новый комментарий
-                        ocell.AddComment(commentText)
-
-                        ' Расширяем размер комментария для лучшей видимости
-                        If ocell.Comment IsNot Nothing Then
-                            ocell.Comment.Shape.Width = 400
-                            ocell.Comment.Shape.Height = 300
-                            ocell.Comment.Shape.TextFrame.AutoSize = True
-                        End If
-                    Catch ex As Exception
-                        ' Игнорируем ошибки с комментариями
-                    End Try
                 Else
                     ' Если нет строк для суммирования, ставим 0
                     ocell.Value2 = "0:00"
@@ -1046,6 +1013,13 @@ Public Module ReportByDepartments
                 Dim lateComment As String = ExtractLateArrivalText(violationText)
                 If Not String.IsNullOrEmpty(lateComment) Then
                     startCell.AddComment(lateComment)
+                    
+                    ' Настраиваем размер комментария
+                    If startCell.Comment IsNot Nothing Then
+                        startCell.Comment.Shape.Width = 300
+                        startCell.Comment.Shape.Height = 100
+                        startCell.Comment.Shape.TextFrame.AutoSize = True
+                    End If
                 End If
 
                 Marshal.FinalReleaseComObject(startCell)
@@ -1064,6 +1038,13 @@ Public Module ReportByDepartments
                         earlyComment += " (пятница)"
                     End If
                     endCell.AddComment(earlyComment)
+                    
+                    ' Настраиваем размер комментария
+                    If endCell.Comment IsNot Nothing Then
+                        endCell.Comment.Shape.Width = 300
+                        endCell.Comment.Shape.Height = 100
+                        endCell.Comment.Shape.TextFrame.AutoSize = True
+                    End If
                 End If
 
                 Marshal.FinalReleaseComObject(endCell)
