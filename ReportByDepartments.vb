@@ -146,6 +146,9 @@ Public Module ReportByDepartments
                 RemoveUnnecessaryColumns(ws)
             Next
 
+            ' Удаляем пустые листы "Отчет"
+            RemoveEmptyReportSheets(wbNew)
+            
             SortSheetsAlphabetically(wbNew)
             app.StatusBar = $"Готово! Файл сохранён: {newName}"
             srcWb.Activate()
@@ -305,6 +308,9 @@ Public Module ReportByDepartments
                     RemoveUnnecessaryColumns(ws)
                 Next
 
+                ' Удаляем пустые листы "Отчет"
+                RemoveEmptyReportSheets(wbDept)
+                
                 SortSheetsAlphabetically(wbDept)
                 wbDept.Save()
                 wbDept.Close(SaveChanges:=False)
@@ -716,13 +722,60 @@ Public Module ReportByDepartments
         Return core & suffix
     End Function
 
+    Private Sub RemoveEmptyReportSheets(wb As Excel.Workbook)
+        ' Удаляем пустые листы с именем "Отчет"
+        Dim sheetsToDelete As New List(Of Excel.Worksheet)
+        
+        For Each sh As Object In wb.Sheets
+            Dim ws = TryCast(sh, Excel.Worksheet)
+            If ws IsNot Nothing AndAlso ws.Name = "Отчет" Then
+                ' Проверяем, пустой ли лист (только заголовки или вообще пустой)
+                Dim usedRange As Excel.Range = ws.UsedRange
+                Dim isEmpty As Boolean = False
+                
+                If usedRange Is Nothing Then
+                    isEmpty = True
+                Else
+                    Dim rowCount As Integer = usedRange.Rows.Count
+                    Dim colCount As Integer = usedRange.Columns.Count
+                    isEmpty = (rowCount <= 1 AndAlso colCount <= 1)
+                End If
+                
+                If usedRange IsNot Nothing Then Marshal.FinalReleaseComObject(usedRange)
+                
+                If isEmpty Then
+                    sheetsToDelete.Add(ws)
+                End If
+            End If
+        Next
+        
+        ' Удаляем найденные пустые листы
+        For Each ws As Excel.Worksheet In sheetsToDelete
+            ws.Delete()
+            Marshal.FinalReleaseComObject(ws)
+        Next
+    End Sub
+
     Private Sub SortSheetsAlphabetically(wb As Excel.Workbook)
         Dim list As New List(Of Excel.Worksheet)
         For Each sh As Object In wb.Sheets
             Dim ws = TryCast(sh, Excel.Worksheet)
             If ws IsNot Nothing Then list.Add(ws)
         Next
-        list.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.CurrentCulture))
+        
+        ' Сортируем так, чтобы листы с "_нет_прохода" были в конце
+        list.Sort(Function(a, b)
+            Dim aHasNoPass = a.Name.Contains("_нет_прохода")
+            Dim bHasNoPass = b.Name.Contains("_нет_прохода")
+            
+            ' Если один имеет "_нет_прохода", а другой нет - тот что без суффикса идет первым
+            If aHasNoPass AndAlso Not bHasNoPass Then Return 1
+            If Not aHasNoPass AndAlso bHasNoPass Then Return -1
+            
+            ' Если оба имеют или не имеют "_нет_прохода" - сортируем по алфавиту
+            Return String.Compare(a.Name, b.Name, StringComparison.CurrentCulture)
+        End Function)
+        
         For i As Integer = 0 To list.Count - 1
             Dim ws As Excel.Worksheet = list(i)
             ws.Move(After:=wb.Sheets(i + 1))

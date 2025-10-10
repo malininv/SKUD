@@ -32,15 +32,15 @@
     <ResolveComReferenceSilent>true</ResolveComReferenceSilent>
     <IsWebBootstrapper>False</IsWebBootstrapper>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <PublishUrl>C:\Users\Vladislav\Desktop\SKUD\</PublishUrl>
+    <PublishUrl>C:\Users\Vladislav\Desktop\SKUD2\</PublishUrl>
     <InstallUrl />
     <TargetCulture>en</TargetCulture>
-    <ApplicationVersion>1.0.0.2</ApplicationVersion>
+    <ApplicationVersion>1.0.0.4</ApplicationVersion>
     <AutoIncrementApplicationRevision>true</AutoIncrementApplicationRevision>
     <UpdateEnabled>true</UpdateEnabled>
     <UpdateInterval>7</UpdateInterval>
     <UpdateIntervalUnits>days</UpdateIntervalUnits>
-    <ProductName>SKUD</ProductName>
+    <ProductName>SKUD v1.0.0.4</ProductName>
     <PublisherName />
     <SupportUrl />
     <FriendlyName>SKUD</FriendlyName>
