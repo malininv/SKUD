@@ -64,35 +64,52 @@ Public Module ReportByDepartments
     Private Const NO_ENTRY_TEXT As String = "Нет входа"
     Private Const NO_EXIT_TEXT As String = "Нет выход"
 
+    ' ====================== КОНСТАНТЫ ДЛЯ ПРИЧИН ОТСУТСТВИЯ ======================
+    Public Const LEAVE_REASON_HEADER As String = "Причина отсутствия"
+    Public Const LEAVES_FILE_HEADER_ROW As Integer = 1
+    Public Const LEAVES_FILE_DATA_START_ROW As Integer = 2
+    Public Const LEAVES_FILE_COL_EMPLOYEE As Integer = 1    ' A — ФИО сотрудника
+    Public Const LEAVES_FILE_COL_START_DATE As Integer = 5  ' E — дата начала отпуска
+    Public Const LEAVES_FILE_COL_END_DATE As Integer = 6    ' F — дата окончания отпуска
+    Public Const LEAVES_FILE_COL_REASON As Integer = 7      ' G — причина отсутствия
+
+    ' ====================== КОНСТАНТЫ ДЛЯ ГРАФИКА РАБОТЫ ======================
+    Public Const WORK_SCHEDULE_HEADER As String = "График работы"
+    Public Const SCHEDULES_FILE_HEADER_ROW As Integer = 5
+    Public Const SCHEDULES_FILE_DATA_START_ROW As Integer = 7
+    Public Const SCHEDULES_FILE_COL_EMPLOYEE As Integer = 3    ' C — ФИО сотрудника
+    Public Const SCHEDULES_FILE_COL_SCHEDULE As Integer = 6    ' F — график работы
+    Public Const SCHEDULES_FILE_SEARCH_COL As Integer = 3      ' C — колонка для поиска последней строки
+
     ' ====================== ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ ======================
-    
+
     ''' <summary>
     ''' Управляет настройками Excel приложения
     ''' </summary>
     Private Class ExcelApplicationManager
         Implements IDisposable
-        
+
         Private ReadOnly _app As Excel.Application
         Private ReadOnly _originalCalculation As Excel.XlCalculation
         Private ReadOnly _originalScreenUpdating As Boolean
         Private ReadOnly _originalEnableEvents As Boolean
         Private ReadOnly _originalDisplayAlerts As Boolean
         Private _disposed As Boolean = False
-        
+
         Public Sub New(app As Excel.Application)
             _app = app
             _originalCalculation = app.Calculation
             _originalScreenUpdating = app.ScreenUpdating
             _originalEnableEvents = app.EnableEvents
             _originalDisplayAlerts = app.DisplayAlerts
-            
+
             ' Устанавливаем оптимальные настройки для работы
             app.Calculation = Excel.XlCalculation.xlCalculationManual
             app.ScreenUpdating = False
             app.EnableEvents = False
             app.DisplayAlerts = False
         End Sub
-        
+
         Public Sub Dispose() Implements IDisposable.Dispose
             If Not _disposed Then
                 ' Восстанавливаем оригинальные настройки
@@ -109,7 +126,7 @@ Public Module ReportByDepartments
     ''' Утилиты для работы с Excel объектами
     ''' </summary>
     Private Class ExcelUtilities
-        
+
         ''' <summary>
         ''' Безопасно получает значение ячейки
         ''' </summary>
@@ -119,7 +136,7 @@ Public Module ReportByDepartments
             Marshal.FinalReleaseComObject(rng)
             Return v
         End Function
-        
+
         ''' <summary>
         ''' Безопасно освобождает COM объект
         ''' </summary>
@@ -128,7 +145,7 @@ Public Module ReportByDepartments
                 Marshal.FinalReleaseComObject(obj)
             End If
         End Sub
-        
+
         ''' <summary>
         ''' Проверяет, является ли значение строкой "ИТОГО"
         ''' </summary>
@@ -137,7 +154,7 @@ Public Module ReportByDepartments
             Dim s As String = CStr(value)
             Return String.Compare(s, TOTAL_MARKER, True, CultureInfo.CurrentCulture) = 0
         End Function
-        
+
         ''' <summary>
         ''' Проверяет, является ли время нулевым
         ''' </summary>
@@ -149,7 +166,7 @@ Public Module ReportByDepartments
             Dim s As String = CStr(value).Trim()
             Return s.StartsWith("0:00", StringComparison.CurrentCulture)
         End Function
-        
+
         ''' <summary>
         ''' Проверяет, является ли дата выходным днем
         ''' </summary>
@@ -164,7 +181,7 @@ Public Module ReportByDepartments
             Dim mondayBased As Integer = ((CInt(dt.DayOfWeek) + 6) Mod 7) + 1 ' 1=Mon .. 7=Sun
             Return (mondayBased = 6 OrElse mondayBased = 7)
         End Function
-        
+
         ''' <summary>
         ''' Ограничивает имя листа согласно правилам Excel
         ''' </summary>
@@ -182,7 +199,7 @@ Public Module ReportByDepartments
             If String.IsNullOrWhiteSpace(name) Then name = DEFAULT_SHEET_NAME
             Return name
         End Function
-        
+
         ''' <summary>
         ''' Ограничивает имя файла согласно правилам Windows
         ''' </summary>
@@ -200,7 +217,7 @@ Public Module ReportByDepartments
             If String.IsNullOrWhiteSpace(name) Then name = DEFAULT_FILE_NAME
             Return name
         End Function
-        
+
         ''' <summary>
         ''' Создает уникальное имя листа
         ''' </summary>
@@ -212,7 +229,7 @@ Public Module ReportByDepartments
             End If
             Return core & suffix
         End Function
-        
+
         ''' <summary>
         ''' Пытается найти лист по имени
         ''' </summary>
@@ -225,7 +242,7 @@ Public Module ReportByDepartments
             Next
             Return Nothing
         End Function
-        
+
         ''' <summary>
         ''' Создает или получает лист с уникальным именем
         ''' </summary>
@@ -251,20 +268,20 @@ Public Module ReportByDepartments
     ''' Управляет листами Excel
     ''' </summary>
     Private Class SheetManager
-        
+
         ''' <summary>
         ''' Удаляет пустые листы "Отчет"
         ''' </summary>
         Public Shared Sub RemoveEmptyReportSheets(wb As Excel.Workbook)
             Dim sheetsToDelete As New List(Of Excel.Worksheet)
-            
+
             For Each sh As Object In wb.Sheets
                 Dim ws = TryCast(sh, Excel.Worksheet)
                 If ws IsNot Nothing AndAlso ws.Name = "Отчет" Then
                     ' Проверяем, пустой ли лист (только заголовки или вообще пустой)
                     Dim usedRange As Excel.Range = ws.UsedRange
                     Dim isEmpty As Boolean = False
-                    
+
                     If usedRange Is Nothing Then
                         isEmpty = True
                     Else
@@ -272,22 +289,22 @@ Public Module ReportByDepartments
                         Dim colCount As Integer = usedRange.Columns.Count
                         isEmpty = (rowCount <= 1 AndAlso colCount <= 1)
                     End If
-                    
+
                     ExcelUtilities.ReleaseComObject(usedRange)
-                    
+
                     If isEmpty Then
                         sheetsToDelete.Add(ws)
                     End If
                 End If
             Next
-            
+
             ' Удаляем найденные пустые листы
             For Each ws As Excel.Worksheet In sheetsToDelete
                 ws.Delete()
                 ExcelUtilities.ReleaseComObject(ws)
             Next
         End Sub
-        
+
         ''' <summary>
         ''' Сортирует листы по алфавиту
         ''' </summary>
@@ -297,26 +314,26 @@ Public Module ReportByDepartments
                 Dim ws = TryCast(sh, Excel.Worksheet)
                 If ws IsNot Nothing Then list.Add(ws)
             Next
-            
+
             ' Сортируем так, чтобы листы с "_нет_прохода" были в конце
             list.Sort(Function(a, b)
-                Dim aHasNoPass = a.Name.Contains("_нет_прохода")
-                Dim bHasNoPass = b.Name.Contains("_нет_прохода")
-                
-                ' Если один имеет "_нет_прохода", а другой нет - тот что без суффикса идет первым
-                If aHasNoPass AndAlso Not bHasNoPass Then Return 1
-                If Not aHasNoPass AndAlso bHasNoPass Then Return -1
-                
-                ' Если оба имеют или не имеют "_нет_прохода" - сортируем по алфавиту
-                Return String.Compare(a.Name, b.Name, StringComparison.CurrentCulture)
-            End Function)
-            
+                          Dim aHasNoPass = a.Name.Contains("_нет_прохода")
+                          Dim bHasNoPass = b.Name.Contains("_нет_прохода")
+
+                          ' Если один имеет "_нет_прохода", а другой нет - тот что без суффикса идет первым
+                          If aHasNoPass AndAlso Not bHasNoPass Then Return 1
+                          If Not aHasNoPass AndAlso bHasNoPass Then Return -1
+
+                          ' Если оба имеют или не имеют "_нет_прохода" - сортируем по алфавиту
+                          Return String.Compare(a.Name, b.Name, StringComparison.CurrentCulture)
+                      End Function)
+
             For i As Integer = 0 To list.Count - 1
                 Dim ws As Excel.Worksheet = list(i)
                 ws.Move(After:=wb.Sheets(i + 1))
             Next
         End Sub
-        
+
         ''' <summary>
         ''' Копирует заголовок на лист
         ''' </summary>
@@ -328,7 +345,7 @@ Public Module ReportByDepartments
             ExcelUtilities.ReleaseComObject(headerRowRange)
             ExcelUtilities.ReleaseComObject(destHeaderRow)
         End Sub
-        
+
         ''' <summary>
         ''' Копирует диапазон строк на лист
         ''' </summary>
@@ -340,7 +357,7 @@ Public Module ReportByDepartments
             ExcelUtilities.ReleaseComObject(srcRange)
             ExcelUtilities.ReleaseComObject(destPaste)
         End Sub
-        
+
         ''' <summary>
         ''' Применяет автофильтр к листу
         ''' </summary>
@@ -375,7 +392,7 @@ Public Module ReportByDepartments
     ''' Управляет колонками Excel
     ''' </summary>
     Private Class ColumnManager
-        
+
         ''' <summary>
         ''' Удаляет ненужные колонки из листа и переносит "ИТОГО" во вторую колонку
         ''' </summary>
@@ -383,18 +400,18 @@ Public Module ReportByDepartments
             Try
                 ' Переименовываем колонку "Мягкие прогулы" в "Находился вне здания" и добавляем комментарий
                 RenameSoftAbsentColumn(ws)
-                
+
                 ' Переносим "ИТОГО" из первой колонки во вторую
                 MoveTotalMarkersToSecondColumn(ws)
-                
+
                 ' Удаляем ненужные колонки в обратном порядке
                 DeleteUnnecessaryColumns(ws)
-                
+
             Catch ex As Exception
                 ' Игнорируем ошибки удаления колонок
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Переименовывает колонку "Мягкие прогулы" и добавляет комментарий
         ''' </summary>
@@ -440,7 +457,7 @@ Public Module ReportByDepartments
                 ' Игнорируем ошибки переименования
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Переносит маркеры "ИТОГО" из первой колонки во вторую
         ''' </summary>
@@ -461,7 +478,7 @@ Public Module ReportByDepartments
                 End If
             Next
         End Sub
-        
+
         ''' <summary>
         ''' Удаляет ненужные колонки
         ''' </summary>
@@ -533,7 +550,7 @@ Public Module ReportByDepartments
 
                 ' Финальная обработка листов
                 FinalizeWorkbook(wbNew)
-                
+
                 app.StatusBar = $"Готово! Файл сохранён: {Path.GetFileName(savePath)}"
                 srcWb.Activate()
                 savedPath = savePath
@@ -602,8 +619,8 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Обрабатывает блок данных отдела
     ''' </summary>
-    Private Sub ProcessDepartmentBlock(wsSource As Excel.Worksheet, wbNew As Excel.Workbook, 
-                                     created As Dictionary(Of String, Excel.Worksheet), 
+    Private Sub ProcessDepartmentBlock(wsSource As Excel.Worksheet, wbNew As Excel.Workbook,
+                                     created As Dictionary(Of String, Excel.Worksheet),
                                      startCopyRow As Integer, endRow As Integer)
         Dim deptRaw As String = CStr(ExcelUtilities.GetCellValue(wsSource, startCopyRow, COL_DEPT))
         Dim dept As String = ExcelUtilities.LimitSheetName(deptRaw)
@@ -621,7 +638,7 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Получает или создает лист отдела
     ''' </summary>
-    Private Function GetOrCreateDepartmentSheet(wb As Excel.Workbook, created As Dictionary(Of String, Excel.Worksheet), 
+    Private Function GetOrCreateDepartmentSheet(wb As Excel.Workbook, created As Dictionary(Of String, Excel.Worksheet),
                                               dept As String, wsSource As Excel.Worksheet) As Excel.Worksheet
         Dim wsTarget As Excel.Worksheet = Nothing
         If Not created.TryGetValue(dept, wsTarget) OrElse wsTarget Is Nothing Then
@@ -652,7 +669,7 @@ Public Module ReportByDepartments
 
         ' Удаляем пустые листы "Отчет"
         SheetManager.RemoveEmptyReportSheets(wb)
-        
+
         ' Сортируем листы по алфавиту
         SheetManager.SortSheetsAlphabetically(wb)
     End Sub
@@ -724,7 +741,7 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Обрабатывает данные по отделам в отдельные файлы
     ''' </summary>
-    Private Sub ProcessDepartmentDataPerDept(wsSource As Excel.Worksheet, app As Excel.Application, 
+    Private Sub ProcessDepartmentDataPerDept(wsSource As Excel.Worksheet, app As Excel.Application,
                                            targetDir As String, savedPaths As List(Of String))
         Dim lastRow As Integer = wsSource.Cells(wsSource.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
         Dim deptToWb As New Dictionary(Of String, Excel.Workbook)(StringComparer.CurrentCulture)
@@ -736,7 +753,7 @@ Public Module ReportByDepartments
         For r As Integer = ROW_HEADER + 1 To lastRow
             Dim markerObj As Object = ExcelUtilities.GetCellValue(wsSource, r, COL_MARKER)
             If ExcelUtilities.IsTotalMarker(markerObj) Then
-                ProcessDepartmentBlockPerDept(wsSource, app, targetDir, deptToWb, deptToPath, 
+                ProcessDepartmentBlockPerDept(wsSource, app, targetDir, deptToWb, deptToPath,
                                             createdSheets, deptHasAnySheet, savedPaths, startCopyRow, r)
                 startCopyRow = r + 1
             End If
@@ -749,7 +766,7 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Обрабатывает блок данных отдела для режима "файл на отдел"
     ''' </summary>
-    Private Sub ProcessDepartmentBlockPerDept(wsSource As Excel.Worksheet, app As Excel.Application, 
+    Private Sub ProcessDepartmentBlockPerDept(wsSource As Excel.Worksheet, app As Excel.Application,
                                             targetDir As String, deptToWb As Dictionary(Of String, Excel.Workbook),
                                             deptToPath As Dictionary(Of String, String),
                                             createdSheets As Dictionary(Of String, Excel.Worksheet),
@@ -767,7 +784,7 @@ Public Module ReportByDepartments
         Dim wbDept As Excel.Workbook = GetOrCreateDepartmentWorkbook(app, targetDir, deptBase, deptToWb, deptToPath, savedPaths)
 
         ' Получаем или создаем лист в рабочей книге отдела
-        Dim wsTarget As Excel.Worksheet = GetOrCreateDepartmentSheetPerDept(wbDept, deptBase, sheetName, 
+        Dim wsTarget As Excel.Worksheet = GetOrCreateDepartmentSheetPerDept(wbDept, deptBase, sheetName,
                                                                            createdSheets, deptHasAnySheet, wsSource)
 
         ' Копируем данные
@@ -782,9 +799,9 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Получает или создает рабочую книгу для отдела
     ''' </summary>
-    Private Function GetOrCreateDepartmentWorkbook(app As Excel.Application, targetDir As String, 
+    Private Function GetOrCreateDepartmentWorkbook(app As Excel.Application, targetDir As String,
                                                   deptBase As String, deptToWb As Dictionary(Of String, Excel.Workbook),
-                                                  deptToPath As Dictionary(Of String, String), 
+                                                  deptToPath As Dictionary(Of String, String),
                                                   savedPaths As List(Of String)) As Excel.Workbook
         Dim wbDept As Excel.Workbook = Nothing
         If Not deptToWb.TryGetValue(deptBase, wbDept) Then
@@ -803,7 +820,7 @@ Public Module ReportByDepartments
     ''' <summary>
     ''' Получает или создает лист в рабочей книге отдела
     ''' </summary>
-    Private Function GetOrCreateDepartmentSheetPerDept(wbDept As Excel.Workbook, deptBase As String, 
+    Private Function GetOrCreateDepartmentSheetPerDept(wbDept As Excel.Workbook, deptBase As String,
                                                       sheetName As String, createdSheets As Dictionary(Of String, Excel.Worksheet),
                                                       deptHasAnySheet As HashSet(Of String), wsSource As Excel.Worksheet) As Excel.Worksheet
         Dim key As String = deptBase & "|" & sheetName
@@ -837,10 +854,10 @@ Public Module ReportByDepartments
 
             ' Удаляем пустые листы "Отчет"
             SheetManager.RemoveEmptyReportSheets(wbDept)
-            
+
             ' Сортируем листы по алфавиту
             SheetManager.SortSheetsAlphabetically(wbDept)
-            
+
             wbDept.Save()
             wbDept.Close(SaveChanges:=False)
             ExcelUtilities.ReleaseComObject(wbDept)
@@ -1068,7 +1085,7 @@ Public Module ReportByDepartments
             If String.IsNullOrEmpty(startTime) AndAlso String.IsNullOrEmpty(endTime) Then Return
             If startTime.Contains(NO_ENTRY_TEXT) AndAlso endTime.Contains(NO_EXIT_TEXT) Then Return
 
-            ' Получаем график работы для сотрудника из колонки "График работы"
+            ' Получаем график работы для сотрудника из колонки графика работы
             Dim workSchedule As String = GetWorkScheduleForEmployee(ws, row)
             If String.IsNullOrEmpty(workSchedule) Then Return
 

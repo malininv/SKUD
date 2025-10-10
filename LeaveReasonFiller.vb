@@ -94,13 +94,13 @@ Public Module LeaveReasonFiller
         Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
         If lastRow < 2 Then Return result
 
-        For r As Integer = 2 To lastRow
-            Dim fio As String = ReadString(ws, r, 1)
+        For r As Integer = ReportByDepartments.LEAVES_FILE_DATA_START_ROW To lastRow
+            Dim fio As String = ReadString(ws, r, ReportByDepartments.LEAVES_FILE_COL_EMPLOYEE)
             If String.IsNullOrEmpty(fio) Then Continue For
 
-            Dim startDate? As Date = ReadDate(ws, r, 5)
-            Dim endDate? As Date = ReadDate(ws, r, 6)
-            Dim reason As String = ReadString(ws, r, 7)
+            Dim startDate? As Date = ReadDate(ws, r, ReportByDepartments.LEAVES_FILE_COL_START_DATE)
+            Dim endDate? As Date = ReadDate(ws, r, ReportByDepartments.LEAVES_FILE_COL_END_DATE)
+            Dim reason As String = ReadString(ws, r, ReportByDepartments.LEAVES_FILE_COL_REASON)
 
             If Not startDate.HasValue OrElse Not endDate.HasValue OrElse String.IsNullOrEmpty(reason) Then Continue For
 
@@ -146,13 +146,13 @@ Public Module LeaveReasonFiller
         Dim lastHeaderCol As Integer = ws.Cells(HEADER_ROW, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
         For col As Integer = 1 To lastHeaderCol
             Dim caption As String = ReadString(ws, HEADER_ROW, col)
-            If String.Compare(caption, "Причина отсутствия", True, CultureInfo.CurrentCulture) = 0 Then
+            If String.Compare(caption, ReportByDepartments.LEAVE_REASON_HEADER, True, CultureInfo.CurrentCulture) = 0 Then
                 Return col
             End If
         Next
 
         Dim newCol As Integer = lastHeaderCol + 1
-        WriteString(ws, HEADER_ROW, newCol, "Причина отсутствия")
+        WriteString(ws, HEADER_ROW, newCol, ReportByDepartments.LEAVE_REASON_HEADER)
         Dim headerCell As Excel.Range = CType(ws.Cells(HEADER_ROW, newCol), Excel.Range)
         headerCell.EntireColumn.NumberFormat = "@"
         Marshal.FinalReleaseComObject(headerCell)

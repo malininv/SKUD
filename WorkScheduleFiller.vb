@@ -98,21 +98,18 @@ Public Module WorkScheduleFiller
         ' - Графики работы находятся в колонке F (6), начиная со строки 7
         ' - Пример: строка 7: C7="Алексеева Надежда Ивановна", F7="!! основной рабочий график с 8:00-17:00 (15:45 обед 12:15)"
 
-        Const SCHEDULE_START_ROW As Integer = 7        ' Первая строка с данными (ФИО и графики)
-        Const FIO_COLUMN As Integer = 3                ' Колонка C - ФИО сотрудников
-        Const SCHEDULE_COLUMN As Integer = 6           ' Колонка F - графики работы
-        Const SEARCH_COLUMN As Integer = 3             ' Колонка для поиска последней строки (та же, что и ФИО)
+        ' Используем константы из ReportByDepartments
 
         ' ==================== ОСНОВНАЯ ЛОГИКА ====================
         Dim result As New Dictionary(Of String, WorkScheduleInfo)(StringComparer.CurrentCultureIgnoreCase)
-        Dim lastRow As Integer = ws.Cells(ws.Rows.Count, SEARCH_COLUMN).End(Excel.XlDirection.xlUp).Row
-        If lastRow < SCHEDULE_START_ROW Then Return result
+        Dim lastRow As Integer = ws.Cells(ws.Rows.Count, ReportByDepartments.SCHEDULES_FILE_SEARCH_COL).End(Excel.XlDirection.xlUp).Row
+        If lastRow < ReportByDepartments.SCHEDULES_FILE_DATA_START_ROW Then Return result
 
-        For r As Integer = SCHEDULE_START_ROW To lastRow
-            Dim fio As String = ReadString(ws, r, FIO_COLUMN)
+        For r As Integer = ReportByDepartments.SCHEDULES_FILE_DATA_START_ROW To lastRow
+            Dim fio As String = ReadString(ws, r, ReportByDepartments.SCHEDULES_FILE_COL_EMPLOYEE)
             If String.IsNullOrEmpty(fio) Then Continue For
 
-            Dim scheduleText As String = ReadString(ws, r, SCHEDULE_COLUMN)
+            Dim scheduleText As String = ReadString(ws, r, ReportByDepartments.SCHEDULES_FILE_COL_SCHEDULE)
             If String.IsNullOrEmpty(scheduleText) Then Continue For
 
             Dim scheduleInfo As WorkScheduleInfo = ParseWorkSchedule(scheduleText)
@@ -150,13 +147,13 @@ Public Module WorkScheduleFiller
         Dim lastHeaderCol As Integer = ws.Cells(HEADER_ROW, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
         For col As Integer = 1 To lastHeaderCol
             Dim caption As String = ReadString(ws, HEADER_ROW, col)
-            If String.Compare(caption, "График работы", True, CultureInfo.CurrentCulture) = 0 Then
+            If String.Compare(caption, ReportByDepartments.WORK_SCHEDULE_HEADER, True, CultureInfo.CurrentCulture) = 0 Then
                 Return col
             End If
         Next
 
         Dim newCol As Integer = lastHeaderCol + 1
-        WriteString(ws, HEADER_ROW, newCol, "График работы")
+        WriteString(ws, HEADER_ROW, newCol, ReportByDepartments.WORK_SCHEDULE_HEADER)
         Dim headerCell As Excel.Range = CType(ws.Cells(HEADER_ROW, newCol), Excel.Range)
         headerCell.EntireColumn.NumberFormat = "@"
         Marshal.FinalReleaseComObject(headerCell)
