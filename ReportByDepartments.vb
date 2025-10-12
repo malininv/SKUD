@@ -148,7 +148,7 @@ Public Module ReportByDepartments
 
             ' Удаляем пустые листы "Отчет"
             RemoveEmptyReportSheets(wbNew)
-            
+
             SortSheetsAlphabetically(wbNew)
             app.StatusBar = $"Готово! Файл сохранён: {newName}"
             srcWb.Activate()
@@ -310,7 +310,7 @@ Public Module ReportByDepartments
 
                 ' Удаляем пустые листы "Отчет"
                 RemoveEmptyReportSheets(wbDept)
-                
+
                 SortSheetsAlphabetically(wbDept)
                 wbDept.Save()
                 wbDept.Close(SaveChanges:=False)
@@ -442,44 +442,42 @@ Public Module ReportByDepartments
                     Dim totalHours As Double = 0
 
                     For row As Integer = formulaStartRow To r - 1
-                        Dim cellValue As Object = GetCellValue(ws, row, COL_OVERTIME)
-                        If cellValue IsNot Nothing Then
-                            ' Пробуем преобразовать в число разными способами
-                            Dim numericValue As Double = 0
-                            If IsNumeric(cellValue) Then
-                                numericValue = CDbl(cellValue)
-                            Else
-                                ' Пробуем преобразовать текст времени в число
-                                Dim timeStr As String = cellValue.ToString()
-                                If timeStr.Contains(":") Then
-                                    Try
-                                        ' Парсим время в формате "h:mm" или "-h:mm"
-                                        Dim isNegative As Boolean = timeStr.StartsWith("-")
-                                        If isNegative Then timeStr = timeStr.Substring(1)
+                        Dim cellRange As Excel.Range = Nothing
+                        Try
+                            Dim startObj As Object = GetCellValue(ws, row, COL_START_TIME)
+                            Dim endObj As Object = GetCellValue(ws, row, COL_END_TIME)
+                            Dim startText As String = If(startObj Is Nothing, String.Empty, CStr(startObj))
+                            Dim endText As String = If(endObj Is Nothing, String.Empty, CStr(endObj))
 
-                                        Dim parts() As String = timeStr.Split(":"c)
-                                        If parts.Length = 2 Then
-                                            Dim timeHours As Integer = Integer.Parse(parts(0))
-                                            Dim timeMinutes As Integer = Integer.Parse(parts(1))
-                                            numericValue = (timeHours + timeMinutes / 60.0) / 24.0 ' Конвертируем в дни Excel
-                                            If isNegative Then numericValue = -numericValue
-                                        End If
-                                    Catch
-                                        ' Игнорируем ошибки парсинга
-                                    End Try
-                                End If
+                            Dim forceZero As Boolean =
+                                String.IsNullOrWhiteSpace(startText) OrElse
+                                String.IsNullOrWhiteSpace(endText) OrElse
+                                startText.IndexOf("нет вход", StringComparison.CurrentCultureIgnoreCase) >= 0 OrElse
+                                endText.IndexOf("нет выход", StringComparison.CurrentCultureIgnoreCase) >= 0
+
+                            Dim numericValue As Double
+                            If forceZero Then
+                                numericValue = 0
+                            Else
+                                cellRange = CType(ws.Cells(row, COL_OVERTIME), Excel.Range)
+                                numericValue = ParseOvertimeHours(cellRange)
                             End If
+
                             totalHours += numericValue
-                        End If
+                        Finally
+                            If cellRange IsNot Nothing Then Marshal.FinalReleaseComObject(cellRange)
+                        End Try
                     Next
 
-                    ' Устанавливаем вычисленное значение в текстовом формате
+                    ' ��⠭�������� ���᫥���� ���祭�� � ⥪�⮢�� �ଠ�
                     Dim absHours As Double = Math.Abs(totalHours)
-                    Dim totalMinutes As Integer = CInt(absHours * 24 * 60)
+                    Dim totalMinutes As Integer = CInt(absHours * 60.0R)
                     Dim resultHours As Integer = totalMinutes \ 60
                     Dim resultMinutes As Integer = totalMinutes Mod 60
 
-                    If totalHours < 0 Then
+                    If totalMinutes = 0 Then
+                        ocell.Value2 = "0:00"
+                    ElseIf totalHours < 0 Then
                         ocell.Value2 = $"-{resultHours}:{resultMinutes:D2}"
                     Else
                         ocell.Value2 = $"{resultHours}:{resultMinutes:D2}"
@@ -692,14 +690,14 @@ Public Module ReportByDepartments
     Private Sub RemoveEmptyReportSheets(wb As Excel.Workbook)
         ' Удаляем пустые листы с именем "Отчет"
         Dim sheetsToDelete As New List(Of Excel.Worksheet)
-        
+
         For Each sh As Object In wb.Sheets
             Dim ws = TryCast(sh, Excel.Worksheet)
             If ws IsNot Nothing AndAlso ws.Name = "Отчет" Then
                 ' Проверяем, пустой ли лист (только заголовки или вообще пустой)
                 Dim usedRange As Excel.Range = ws.UsedRange
                 Dim isEmpty As Boolean = False
-                
+
                 If usedRange Is Nothing Then
                     isEmpty = True
                 Else
@@ -707,15 +705,15 @@ Public Module ReportByDepartments
                     Dim colCount As Integer = usedRange.Columns.Count
                     isEmpty = (rowCount <= 1 AndAlso colCount <= 1)
                 End If
-                
+
                 If usedRange IsNot Nothing Then Marshal.FinalReleaseComObject(usedRange)
-                
+
                 If isEmpty Then
                     sheetsToDelete.Add(ws)
                 End If
             End If
         Next
-        
+
         ' Удаляем найденные пустые листы
         For Each ws As Excel.Worksheet In sheetsToDelete
             ws.Delete()
@@ -729,26 +727,132 @@ Public Module ReportByDepartments
             Dim ws = TryCast(sh, Excel.Worksheet)
             If ws IsNot Nothing Then list.Add(ws)
         Next
-        
+
         ' Сортируем так, чтобы листы с "_нет_прохода" были в конце
         list.Sort(Function(a, b)
-            Dim aHasNoPass = a.Name.Contains("_нет_прохода")
-            Dim bHasNoPass = b.Name.Contains("_нет_прохода")
-            
-            ' Если один имеет "_нет_прохода", а другой нет - тот что без суффикса идет первым
-            If aHasNoPass AndAlso Not bHasNoPass Then Return 1
-            If Not aHasNoPass AndAlso bHasNoPass Then Return -1
-            
-            ' Если оба имеют или не имеют "_нет_прохода" - сортируем по алфавиту
-            Return String.Compare(a.Name, b.Name, StringComparison.CurrentCulture)
-        End Function)
-        
+                      Dim aHasNoPass = a.Name.Contains("_нет_прохода")
+                      Dim bHasNoPass = b.Name.Contains("_нет_прохода")
+
+                      ' Если один имеет "_нет_прохода", а другой нет - тот что без суффикса идет первым
+                      If aHasNoPass AndAlso Not bHasNoPass Then Return 1
+                      If Not aHasNoPass AndAlso bHasNoPass Then Return -1
+
+                      ' Если оба имеют или не имеют "_нет_прохода" - сортируем по алфавиту
+                      Return String.Compare(a.Name, b.Name, StringComparison.CurrentCulture)
+                  End Function)
+
         For i As Integer = 0 To list.Count - 1
             Dim ws As Excel.Worksheet = list(i)
             ws.Move(After:=wb.Sheets(i + 1))
         Next
     End Sub
 
+    Private Function ParseOvertimeHours(cell As Excel.Range) As Double
+        If cell Is Nothing Then Return 0
+
+        Dim rawValue As Object = Nothing
+        Dim textValue As String = String.Empty
+        Dim numberFormat As String = String.Empty
+
+        Try
+            rawValue = cell.Value2
+        Catch
+            rawValue = Nothing
+        End Try
+
+        Try
+            textValue = CStr(cell.Text)
+        Catch
+            textValue = String.Empty
+        End Try
+
+        Try
+            numberFormat = CStr(cell.NumberFormat)
+        Catch
+            numberFormat = String.Empty
+        End Try
+
+        textValue = If(textValue, String.Empty).Trim()
+        numberFormat = If(numberFormat, String.Empty)
+
+        If textValue.Length = 0 OrElse textValue = "-" Then
+            Return 0
+        End If
+
+        Dim hoursFromText As Double
+        If TryParseTimeText(textValue, hoursFromText) Then
+            Return hoursFromText
+        End If
+
+        If rawValue IsNot Nothing Then
+            Dim rawString As String = Convert.ToString(rawValue, CultureInfo.CurrentCulture)
+
+            If TypeOf rawValue Is Double OrElse TypeOf rawValue Is Single OrElse TypeOf rawValue Is Decimal Then
+                Dim dbl As Double = CDbl(rawValue)
+                If LooksLikeTimeFormat(numberFormat) Then
+                    Return dbl * 24.0R
+                End If
+                Return dbl
+            End If
+
+            Dim numericFromRaw As Double
+            If Double.TryParse(rawString, NumberStyles.Float, CultureInfo.CurrentCulture, numericFromRaw) Then
+                Return numericFromRaw
+            End If
+            If Double.TryParse(rawString, NumberStyles.Float, CultureInfo.InvariantCulture, numericFromRaw) Then
+                Return numericFromRaw
+            End If
+        End If
+
+        Dim numericFromText As Double
+        If Double.TryParse(textValue, NumberStyles.Float, CultureInfo.CurrentCulture, numericFromText) Then
+            Return numericFromText
+        End If
+        If Double.TryParse(textValue, NumberStyles.Float, CultureInfo.InvariantCulture, numericFromText) Then
+            Return numericFromText
+        End If
+
+        Return 0
+    End Function
+
+    Private Function TryParseTimeText(text As String, ByRef hours As Double) As Boolean
+        hours = 0
+        If String.IsNullOrWhiteSpace(text) Then Return False
+
+        Dim s As String = text.Trim()
+        Dim sign As Double = 1
+        If s.StartsWith("-"c) Then
+            sign = -1
+            s = s.Substring(1)
+        ElseIf s.StartsWith("+"c) Then
+            s = s.Substring(1)
+        End If
+        s = s.Trim()
+
+        Dim parts() As String = s.Split(":"c)
+        If parts.Length < 2 Then
+            Return False
+        End If
+
+        Dim hh As Double
+        Dim mm As Double = 0
+        Dim ss As Double = 0
+
+        If Not Double.TryParse(parts(0), NumberStyles.Float, CultureInfo.CurrentCulture, hh) Then Return False
+        If parts.Length >= 2 AndAlso Not Double.TryParse(parts(1), NumberStyles.Float, CultureInfo.CurrentCulture, mm) Then Return False
+        If parts.Length >= 3 Then Double.TryParse(parts(2), NumberStyles.Float, CultureInfo.CurrentCulture, ss)
+
+        hours = sign * (hh + mm / 60.0R + ss / 3600.0R)
+        Return True
+    End Function
+
+    Private Function LooksLikeTimeFormat(formatString As String) As Boolean
+        If String.IsNullOrEmpty(formatString) Then Return False
+        Dim nf As String = formatString.ToLower(CultureInfo.InvariantCulture)
+        If nf.Contains("h") OrElse nf.Contains(":") Then Return True
+        If nf.Contains("час") OrElse nf.Contains("мин") Then Return True
+        Return False
+    End Function
     Private Function GetCellValue(ws As Excel.Worksheet, row As Integer, col As Integer) As Object
         Dim rng As Excel.Range = CType(ws.Cells(row, col), Excel.Range)
         Dim v As Object = rng.Value2
@@ -1013,7 +1117,7 @@ Public Module ReportByDepartments
                 Dim lateComment As String = ExtractLateArrivalText(violationText)
                 If Not String.IsNullOrEmpty(lateComment) Then
                     startCell.AddComment(lateComment)
-                    
+
                     ' Настраиваем размер комментария
                     If startCell.Comment IsNot Nothing Then
                         startCell.Comment.Shape.Width = 300
@@ -1038,7 +1142,7 @@ Public Module ReportByDepartments
                         earlyComment += " (пятница)"
                     End If
                     endCell.AddComment(earlyComment)
-                    
+
                     ' Настраиваем размер комментария
                     If endCell.Comment IsNot Nothing Then
                         endCell.Comment.Shape.Width = 300
@@ -1085,3 +1189,4 @@ Public Module ReportByDepartments
 
 
 End Module
+
