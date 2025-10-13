@@ -372,6 +372,7 @@ Public Module ReportByDepartments
                 Continue For
             End If
         Next
+        NormalizeSummaryOvertimeValues(ws)
 
         ' Теперь обрабатываем оставшиеся строки
         lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
@@ -853,6 +854,98 @@ Public Module ReportByDepartments
         If nf.Contains("час") OrElse nf.Contains("мин") Then Return True
         Return False
     End Function
+    Private Sub NormalizeSummaryOvertimeValues(ws As Excel.Worksheet)
+        If ws Is Nothing Then Exit Sub
+
+        Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+        For totalRow As Integer = ROW_DATA_START To lastRow
+            Dim markerObj As Object = GetCellValue(ws, totalRow, COL_MARKER)
+            If Not StringEquals(markerObj, "ИТОГО") Then Continue For
+
+            Dim firstDataRow As Integer = totalRow - 1
+            While firstDataRow > ROW_DATA_START AndAlso Not StringEquals(GetCellValue(ws, firstDataRow, COL_MARKER), "ИТОГО")
+                firstDataRow -= 1
+            End While
+
+            If StringEquals(GetCellValue(ws, firstDataRow, COL_MARKER), "ИТОГО") Then
+                firstDataRow += 1
+            End If
+
+            If firstDataRow < ROW_DATA_START Then
+                firstDataRow = ROW_DATA_START
+            End If
+
+            Dim totalHours As Double = 0
+            For dataRow As Integer = firstDataRow To totalRow - 1
+                Dim cellRange As Excel.Range = Nothing
+                Try
+                    cellRange = CType(ws.Cells(dataRow, COL_OVERTIME), Excel.Range)
+                    totalHours += ParseOvertimeHours(cellRange)
+                Finally
+                    If cellRange IsNot Nothing Then Marshal.FinalReleaseComObject(cellRange)
+                End Try
+            Next
+
+            Dim targetCell As Excel.Range = CType(ws.Cells(totalRow, COL_OVERTIME), Excel.Range)
+            Try
+                Dim totalMinutes As Integer = CInt(Math.Round(Math.Abs(totalHours) * 60.0R, MidpointRounding.AwayFromZero))
+                Dim resultHours As Integer = totalMinutes \ 60
+                Dim resultMinutes As Integer = totalMinutes Mod 60
+
+                If totalMinutes = 0 Then
+                    targetCell.Value2 = "0:00"
+                ElseIf totalHours < 0 Then
+                    targetCell.Value2 = $"-{resultHours}:{resultMinutes:D2}"
+                Else
+                    targetCell.Value2 = $"{resultHours}:{resultMinutes:D2}"
+                End If
+
+                targetCell.NumberFormat = "@"
+
+                Dim ov As Object = targetCell.Value2
+                Dim hoursForColor As Double
+                Dim haveHours As Boolean = False
+
+                If IsNumeric(ov) Then
+                    Dim v As Double = CDbl(ov)
+                    Dim nf As String = CStr(targetCell.NumberFormat)
+                    Dim isTimeFmt As Boolean = (nf.IndexOf(":", StringComparison.Ordinal) >= 0) OrElse
+                                           (nf.IndexOf("[h", StringComparison.OrdinalIgnoreCase) >= 0)
+                    hoursForColor = If(isTimeFmt, v * 24.0R, v)
+                    haveHours = True
+                Else
+                    Dim s As String = CStr(ov).Trim()
+                    Dim sign As Double = 1
+                    If s.StartsWith("-"c) Then sign = -1 : s = s.Substring(1)
+                    If s.StartsWith("+"c) Then s = s.Substring(1)
+                    Dim parts() As String = s.Split(":"c)
+                    If parts.Length >= 2 Then
+                        Dim hh As Double, mm As Double, ss As Double
+                        If Double.TryParse(parts(0), hh) AndAlso Double.TryParse(parts(1), mm) Then
+                            If parts.Length >= 3 Then Double.TryParse(parts(2), ss)
+                            hoursForColor = sign * (hh + mm / 60.0R + ss / 3600.0R)
+                            haveHours = True
+                        End If
+                    End If
+                End If
+
+                If haveHours Then
+                    targetCell.FormatConditions.Delete()
+
+                    If hoursForColor > 0 Then
+                        targetCell.Interior.Color = ColorTranslator.ToOle(Color.LimeGreen)
+                    ElseIf hoursForColor >= -1 Then
+                        targetCell.Interior.Color = ColorTranslator.ToOle(Color.Yellow)
+                    Else
+                        targetCell.Interior.Color = ColorTranslator.ToOle(Color.Red)
+                    End If
+                End If
+            Finally
+                Marshal.FinalReleaseComObject(targetCell)
+            End Try
+        Next
+    End Sub
+
     Private Function GetCellValue(ws As Excel.Worksheet, row As Integer, col As Integer) As Object
         Dim rng As Excel.Range = CType(ws.Cells(row, col), Excel.Range)
         Dim v As Object = rng.Value2
@@ -860,10 +953,32 @@ Public Module ReportByDepartments
         Return v
     End Function
 
+    Private Function NormalizeMarkerText(value As String) As String
+        If String.IsNullOrEmpty(value) Then Return String.Empty
+
+        Dim normalized As String = value
+
+        normalized = normalized.Replace(ChrW(&HA0), " ")
+        normalized = normalized.Replace(ChrW(&H202F), " ")
+        normalized = normalized.Replace(ChrW(&H2007), " ")
+
+        normalized = normalized.Trim()
+
+        While normalized.Length > 0 AndAlso Char.IsPunctuation(normalized(normalized.Length - 1))
+            normalized = normalized.Substring(0, normalized.Length - 1).TrimEnd()
+        End While
+
+        normalized = Regex.Replace(normalized, "\s+", " ")
+
+        Return normalized
+    End Function
+
     Private Function StringEquals(v As Object, expected As String) As Boolean
         If v Is Nothing Then Return False
-        Dim s As String = CStr(v)
-        Return String.Compare(s, expected, True, CultureInfo.CurrentCulture) = 0
+        Dim actualNormalized As String = NormalizeMarkerText(CStr(v))
+        Dim expectedNormalized As String = NormalizeMarkerText(expected)
+        If expectedNormalized.Length = 0 Then Return actualNormalized.Length = 0
+        Return actualNormalized.StartsWith(expectedNormalized, True, CultureInfo.CurrentCulture)
     End Function
 
     Private Function IsZeroTime(v As Object) As Boolean
