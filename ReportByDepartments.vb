@@ -122,6 +122,10 @@ Public Module ReportByDepartments
                             destHeaderRow.Font.Bold = True
                             Marshal.FinalReleaseComObject(headerRowRange)
                             Marshal.FinalReleaseComObject(destHeaderRow)
+                            
+                            ' Переименовываем заголовки
+                            RenameHeaders(wsTarget)
+                            
                             created(dept) = wsTarget
                         End If
 
@@ -133,9 +137,13 @@ Public Module ReportByDepartments
                         Marshal.FinalReleaseComObject(destPaste)
 
                         BeautifySheet(wsTarget)
+                        
                         Dim rngFit As Excel.Range = wsTarget.UsedRange
                         rngFit.Columns.AutoFit()
                         Marshal.FinalReleaseComObject(rngFit)
+                        
+                        ' Закрепляем заголовок
+                        FreezeHeaderRow(wsTarget)
                     End If
                     startCopyRow = r + 1
                 End If
@@ -275,6 +283,10 @@ Public Module ReportByDepartments
                         destHeaderRow.Font.Bold = True
                         Marshal.FinalReleaseComObject(headerRowRange)
                         Marshal.FinalReleaseComObject(destHeaderRow)
+                        
+                        ' Переименовываем заголовки
+                        RenameHeaders(wsTarget)
+                        
                         createdSheets(key) = wsTarget
                         deptHasAnySheet.Add(deptBase)
                     End If
@@ -288,9 +300,13 @@ Public Module ReportByDepartments
                     Marshal.FinalReleaseComObject(destPaste)
 
                     BeautifySheet(wsTarget)
+                    
                     Dim rngFit As Excel.Range = wsTarget.UsedRange
                     rngFit.Columns.AutoFit()
                     Marshal.FinalReleaseComObject(rngFit)
+                    
+                    ' Закрепляем заголовок
+                    FreezeHeaderRow(wsTarget)
 
                     ' Save dept workbook incrementally
                     wbDept.Save()
@@ -330,6 +346,76 @@ Public Module ReportByDepartments
     End Function
 
     ' ====================== Helpers ======================
+
+    Private Sub FreezeHeaderRow(ws As Excel.Worksheet)
+        ' Закрепляем первую строку (заголовок) при пролистывании
+        Try
+            ws.Activate()
+            ws.Range("A2").Select()
+            ws.Application.ActiveWindow.FreezePanes = True
+        Catch ex As Exception
+            ' Игнорируем ошибки закрепления панелей
+        End Try
+    End Sub
+
+    Private Sub RenameHeaders(ws As Excel.Worksheet)
+        ' Единая функция для переименования всех заголовков
+        Try
+            Dim lastCol As Integer = ws.Cells(1, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            
+            For col As Integer = 1 To lastCol
+                Dim headerCell As Excel.Range = CType(ws.Cells(1, col), Excel.Range)
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                
+                If Not IsNothing(headerValue) Then
+                    Dim headerText As String = CStr(headerValue).Trim()
+                    Dim newHeaderText As String = headerText
+                    
+                    ' Переименовываем заголовки
+                    If headerText.Contains("Мягких прогулов") Then
+                        newHeaderText = "Находился вне здания (Ч:М)"
+                        
+                        ' Добавляем комментарий для этого заголовка
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Delete()
+                        End If
+                        headerCell.AddComment("Время, которое сотрудник находился вне здания в необеденное время")
+                        
+                        ' Настраиваем размер комментария
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Shape.Width = 400
+                            headerCell.Comment.Shape.Height = 150
+                            headerCell.Comment.Shape.TextFrame.AutoSize = True
+                            
+                            ' Увеличиваем padding (отступы) для комментария
+                            With headerCell.Comment.Shape.TextFrame
+                                .MarginLeft = 10
+                                .MarginRight = 10
+                                .MarginTop = 10
+                                .MarginBottom = 10
+                            End With
+                        End If
+                        
+                    ElseIf headerText.Contains("Находился в здании") AndAlso Not headerText.Contains("(Ч:М)") Then
+                        newHeaderText = headerText & " (Ч:М)"
+                    ElseIf headerText.Contains("Фактическая переработка") AndAlso Not headerText.Contains("(Ч:М)") Then
+                        newHeaderText = headerText & " (Ч:М)"
+                    End If
+                    
+                    ' Обновляем заголовок, если он изменился
+                    If newHeaderText <> headerText Then
+                        headerCell.Value2 = newHeaderText
+                    End If
+                End If
+                
+                Marshal.FinalReleaseComObject(headerCell)
+            Next
+        Catch ex As Exception
+            ' Игнорируем ошибки переименования заголовков
+        End Try
+    End Sub
+
+
     Private Sub ApplyAutoFilter(ws As Excel.Worksheet, headerRow As Integer)
         ' Safe/optional: activates sheet, tries main range then UsedRange; ignores errors.
         Try
@@ -563,48 +649,7 @@ Public Module ReportByDepartments
     ' Удаляет ненужные колонки из листа и переносит "ИТОГО" во вторую колонку
     Private Sub RemoveUnnecessaryColumns(ws As Excel.Worksheet)
         Try
-            ' Переименовываем колонку "Мягкие прогулы" в "Находился вне здания" и добавляем комментарий (9-я колонка)
-            Try
-                Dim headerRow As Integer = 1
-                Dim headerCell As Excel.Range = CType(ws.Cells(headerRow, 9), Excel.Range)
-                Dim headerValue As Object = GetCellValue(ws, headerRow, 9)
-
-                If Not IsNothing(headerValue) AndAlso CStr(headerValue).Contains("Мягких прогулов") Then
-                    ' Переименовываем заголовок
-                    headerCell.Value2 = "Находился вне здания"
-
-                    ' Добавляем комментарий
-                    Dim commentText As String = "Время, которое сотрудник находился вне здания в необеденное время"
-                    If headerCell.Comment IsNot Nothing Then
-                        headerCell.Comment.Delete()
-                    End If
-                    headerCell.AddComment(commentText)
-
-                    ' Расширяем размер комментария и выравниваем ширину столбца
-                    If headerCell.Comment IsNot Nothing Then
-                        headerCell.Comment.Shape.Width = 400
-                        headerCell.Comment.Shape.Height = 150
-                        headerCell.Comment.Shape.TextFrame.AutoSize = True
-
-                        ' Увеличиваем padding (отступы) для комментария
-                        With headerCell.Comment.Shape.TextFrame
-                            .MarginLeft = 10
-                            .MarginRight = 10
-                            .MarginTop = 10
-                            .MarginBottom = 10
-                        End With
-                    End If
-
-                    ' Выравниваем ширину столбца
-                    Dim columnRange As Excel.Range = CType(ws.Columns(9), Excel.Range)
-                    columnRange.AutoFit()
-                    Marshal.FinalReleaseComObject(columnRange)
-                End If
-
-                Marshal.FinalReleaseComObject(headerCell)
-            Catch ex As Exception
-                ' Игнорируем ошибки переименования
-            End Try
+            ' Переименование заголовков теперь выполняется в функции RenameHeaders
 
             ' Сначала переносим "ИТОГО" из первой колонки во вторую
             Dim lastRow As Integer = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
