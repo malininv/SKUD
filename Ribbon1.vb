@@ -156,4 +156,173 @@ Public Class Ribbon1
         End Try
     End Sub
 
+    ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ===
+    Private Sub btnShowInstructions_Click(sender As Object, e As RibbonControlEventArgs) Handles btnShowInstructions.Click
+        Try
+            ' Создаем HTML-страницу с инструкцией
+            Dim instructionHtml As String = CreateInstructionHtml()
+            
+            ' Создаем временный файл
+            Dim tempPath As String = Path.Combine(Path.GetTempPath(), "SKUD_Instruction.html")
+            File.WriteAllText(tempPath, instructionHtml, System.Text.Encoding.UTF8)
+            
+            ' Открываем в браузере по умолчанию
+            Process.Start(tempPath)
+            
+        Catch ex As Exception
+            MessageBox.Show($"Ошибка при открытии инструкции: {ex.Message}", "Ошибка", 
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    ' Создает HTML-страницу с инструкцией
+    Private Function CreateInstructionHtml() As String
+        Return "<!DOCTYPE html>
+<html lang=""ru"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>Инструкция по использованию СКУД</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        h3 { color: #7f8c8d; }
+        .step { background-color: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .warning { background-color: #fff3cd; padding: 15px; margin: 10px 0; border-left: 4px solid #ffc107; }
+        .success { background-color: #d4edda; padding: 15px; margin: 10px 0; border-left: 4px solid #28a745; }
+        .code { background-color: #f1f2f6; padding: 10px; font-family: monospace; border-radius: 4px; }
+        ul { padding-left: 20px; }
+        li { margin: 5px 0; }
+        .image-placeholder { 
+            background-color: #e9ecef; 
+            border: 2px dashed #6c757d; 
+            padding: 40px; 
+            text-align: center; 
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📋 Инструкция по использованию СКУД</h1>
+    
+    <h2>🎯 Общее описание</h2>
+    <p>Надстройка СКУД предназначена для автоматической обработки данных системы контроля и управления доступом, 
+    создания отчетов по отделам и проставления отпусков и графиков работы.</p>
+    
+    <h2>🔧 Основные функции</h2>
+    
+    <h3>1. Отделы по листам</h3>
+    <div class=""step"">
+        <strong>Назначение:</strong> Создает один файл Excel с отдельными листами для каждого отдела.<br>
+        <strong>Использование:</strong>
+        <ul>
+            <li><strong>Активная книга:</strong> Обрабатывает текущую открытую книгу Excel</li>
+            <li><strong>Выбрать файл:</strong> Позволяет выбрать файл для обработки</li>
+        </ul>
+    </div>
+    
+    <h3>2. Отделы по файлам</h3>
+    <div class=""step"">
+        <strong>Назначение:</strong> Создает отдельный файл Excel для каждого отдела в папке.<br>
+        <strong>Использование:</strong>
+        <ul>
+            <li><strong>Активная книга:</strong> Обрабатывает текущую открытую книгу Excel</li>
+            <li><strong>Выбрать файл:</strong> Позволяет выбрать файл для обработки</li>
+        </ul>
+    </div>
+    
+    <h3>3. Проставление отпусков</h3>
+    <div class=""step"">
+        <strong>Назначение:</strong> Автоматически проставляет причины отсутствия сотрудников на основе файла отпусков.<br>
+        <strong>Формат файла отпусков:</strong>
+        <ul>
+            <li>Колонка A: ФИО сотрудника</li>
+            <li>Колонка E: Дата начала отпуска</li>
+            <li>Колонка F: Дата окончания отпуска</li>
+            <li>Колонка G: Причина отсутствия</li>
+        </ul>
+    </div>
+    
+    <h3>4. Проставление графиков работы</h3>
+    <div class=""step"">
+        <strong>Назначение:</strong> Автоматически проставляет графики работы сотрудников.<br>
+        <strong>Формат файла графиков:</strong>
+        <ul>
+            <li>Колонка C: ФИО сотрудника (начиная со строки 7)</li>
+            <li>Колонка F: График работы (начиная со строки 7)</li>
+        </ul>
+    </div>
+    
+    <h2>📊 Структура данных</h2>
+    <div class=""warning"">
+        <strong>Важно!</strong> Исходный файл выгрузки из СКУД должен содержать следующие колонки:
+        <ul>
+            <li>1. Фирма</li>
+            <li>2. Подразделение</li>
+            <li>3. Сотрудник</li>
+            <li>4. Должность</li>
+            <li>5. Таб.№</li>
+            <li>6. Дата</li>
+            <li>7. Находился в здании</li>
+            <li>8. Прогулял</li>
+            <li>9. Причины не выхода</li>
+            <li>10. Комм. причины отсутствия</li>
+            <li>11. Начало дня</li>
+            <li>12. Конец дня</li>
+            <li>13. Работа в праздничные дни</li>
+            <li>14. Фактическая переработка</li>
+        </ul>
+    </div>
+    
+    <h2>⚙️ Настройки в СКУД</h2>
+    <div class=""step"">
+        <strong>Важно!</strong> Для корректной работы надстройки в системе СКУД должны быть настроены следующие параметры:
+    </div>
+    
+    <div class=""image-placeholder"">
+        📷 <strong>Скриншот 1: Параметры в Учетре рабочего времени в СКУД</strong><br>
+        Здесь будет изображение с настройками системы СКУД для корректной выгрузки данных
+    </div>
+    
+    <div class=""image-placeholder"">
+        📷 <strong>Скриншот 2: Настройки экспорта отчета в Excel в СКУД. Выбраны все колонки.</strong><br>
+        Здесь будет изображение с примером правильной структуры файла выгрузки
+    </div>
+
+    <h2>🎨 Особенности обработки</h2>
+    
+    <h3>Автоматическое форматирование</h3>
+    <ul>
+        <li>Удаление выходных дней с нулевым временем</li>
+        <li>Подсветка ячеек с нулевым временем (желтый фон, красный шрифт)</li>
+        <li>Цветовая индикация фактической переработки:
+            <ul>
+                <li>🟢 Зеленый: положительная переработка</li>
+                <li>🟡 Желтый: небольшая недоработка (-1 до 0 часов)</li>
+                <li>🔴 Красный: значительная недоработка (более -1 часа)</li>
+            </ul>
+        </li>
+    </ul>
+    
+    <h3>Создание листов ""_нет_прохода""</h3>
+    <div class=""success"">
+        Система автоматически создает отдельные листы с суффиксом ""_нет_прохода"" для отделов, 
+        где сотрудники не проходили через систему контроля доступа за указанный период.
+    </div>
+    
+    
+    <h2>🆘 Поддержка</h2>
+    <p>При возникновении проблем или вопросов обращайтесь к разработчику.</p>
+    <p>Разработчик: Малинин Владислав</p>
+    <p>e-mail: vladmalinin93@gmail.com</p>
+    <p>Телефон: +7 (951) 187-67-10</p>
+    
+    <hr>
+    <p><em>Версия: 1.0.0.9 | Дата обновления: " & DateTime.Now.ToString("dd.MM.yyyy") & "</em></p>
+</body>
+</html>"
+    End Function
+
 End Class

@@ -51,10 +51,13 @@
         Me.Group3 = Me.Factory.CreateRibbonGroup
         Me.btnApplyVacations = Me.Factory.CreateRibbonButton
         Me.btnApplyWorkSchedules = Me.Factory.CreateRibbonButton
+        Me.Group4 = Me.Factory.CreateRibbonGroup
+        Me.btnShowInstructions = Me.Factory.CreateRibbonButton
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
         Me.Group2.SuspendLayout()
         Me.Group3.SuspendLayout()
+        Me.Group4.SuspendLayout()
         Me.SuspendLayout()
         '
         'Tab1
@@ -62,6 +65,7 @@
         Me.Tab1.Groups.Add(Me.Group1)
         Me.Tab1.Groups.Add(Me.Group2)
         Me.Tab1.Groups.Add(Me.Group3)
+        Me.Tab1.Groups.Add(Me.Group4)
         Me.Tab1.Label = "СКУД"
         Me.Tab1.Name = "Tab1"
         '
@@ -134,6 +138,20 @@
         Me.btnApplyWorkSchedules.OfficeImageId = "ColumnsDialog"
         Me.btnApplyWorkSchedules.ShowImage = True
         '
+        'Group4
+        '
+        Me.Group4.Items.Add(Me.btnShowInstructions)
+        Me.Group4.Label = "Справка"
+        Me.Group4.Name = "Group4"
+        '
+        'btnShowInstructions
+        '
+        Me.btnShowInstructions.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnShowInstructions.Label = "Инструкция"
+        Me.btnShowInstructions.Name = "btnShowInstructions"
+        Me.btnShowInstructions.OfficeImageId = "Help"
+        Me.btnShowInstructions.ShowImage = True
+        '
         'Ribbon1
         '
         Me.Name = "Ribbon1"
@@ -147,6 +165,8 @@
         Me.Group2.PerformLayout()
         Me.Group3.ResumeLayout(False)
         Me.Group3.PerformLayout()
+        Me.Group4.ResumeLayout(False)
+        Me.Group4.PerformLayout()
         Me.ResumeLayout(False)
 
     End Sub
@@ -161,6 +181,8 @@
     Friend WithEvents btnApplyVacations As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents btnApplyWorkSchedules As Microsoft.Office.Tools.Ribbon.RibbonButton
     Friend WithEvents Group3 As Microsoft.Office.Tools.Ribbon.RibbonGroup
+    Friend WithEvents Group4 As Microsoft.Office.Tools.Ribbon.RibbonGroup
+    Friend WithEvents btnShowInstructions As Microsoft.Office.Tools.Ribbon.RibbonButton
 End Class
 
 Partial Class ThisRibbonCollection
