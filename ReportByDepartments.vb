@@ -32,9 +32,9 @@ Public Module ReportByDepartments
     Private Const COL_EMPLOYEE As Integer = 3 ' C — ФИО сотрудника
     Private Const COL_DATE As Integer = 6   ' F — дата
     Private Const COL_TIME As Integer = 7   ' G — время
-    Private Const COL_START_TIME As Integer = 10 ' J — "Начало дня"
-    Private Const COL_END_TIME As Integer = 11   ' K — "Конец дня"
-    Private Const COL_OVERTIME As Integer = 13 ' "Фактическая переработка"
+    Private Const COL_START_TIME As Integer = 11 ' J — "Начало дня"
+    Private Const COL_END_TIME As Integer = 12   ' K — "Конец дня"
+    Private Const COL_OVERTIME As Integer = 14 ' "Фактическая переработка"
 
     ' ====================== SHEETS MODE (one workbook with many sheets) ======================
     Public Function GenerateFromActiveWorkbook(app As Excel.Application) As String
@@ -372,7 +372,7 @@ Public Module ReportByDepartments
                     Dim newHeaderText As String = headerText
                     
                     ' Переименовываем заголовки
-                    If headerText.Contains("Мягких прогулов") Then
+                    If headerText.Contains("Прогулял") Then
                         newHeaderText = "Находился вне здания (Ч:М)"
                         
                         ' Добавляем комментарий для этого заголовка
@@ -398,8 +398,49 @@ Public Module ReportByDepartments
                         
                     ElseIf headerText.Contains("Находился в здании") AndAlso Not headerText.Contains("(Ч:М)") Then
                         newHeaderText = headerText & " (Ч:М)"
+
+                         ' Добавляем комментарий для этого заголовка
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Delete()
+                        End If
+                        headerCell.AddComment("Время, которое сотрудник находился в здании, исключая обеденное время")
+                        
+                        ' Настраиваем размер комментария
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Shape.Width = 400
+                            headerCell.Comment.Shape.Height = 150
+                            headerCell.Comment.Shape.TextFrame.AutoSize = True
+                            
+                            ' Увеличиваем padding (отступы) для комментария
+                            With headerCell.Comment.Shape.TextFrame
+                                .MarginLeft = 10
+                                .MarginRight = 10
+                                .MarginTop = 10
+                                .MarginBottom = 10
+                            End With
+                        End If
                     ElseIf headerText.Contains("Фактическая переработка") AndAlso Not headerText.Contains("(Ч:М)") Then
                         newHeaderText = headerText & " (Ч:М)"
+                         ' Добавляем комментарий для этого заголовка
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Delete()
+                        End If
+                        headerCell.AddComment("(Утренняя переработка + Вечерняя переработка) - Находился вне здания")
+                        
+                        ' Настраиваем размер комментария
+                        If headerCell.Comment IsNot Nothing Then
+                            headerCell.Comment.Shape.Width = 400
+                            headerCell.Comment.Shape.Height = 150
+                            headerCell.Comment.Shape.TextFrame.AutoSize = True
+                            
+                            ' Увеличиваем padding (отступы) для комментария
+                            With headerCell.Comment.Shape.TextFrame
+                                .MarginLeft = 10
+                                .MarginRight = 10
+                                .MarginTop = 10
+                                .MarginBottom = 10
+                            End With
+                        End If
                     End If
                     
                     ' Обновляем заголовок, если он изменился
@@ -499,12 +540,12 @@ Public Module ReportByDepartments
         ' ВТОРОЙ ЭТАП: Суммирование для строк ИТОГО
         For r As Integer = lastRow To 2 Step -1
 
-            ' --- Обработка "Фактическая переработка" ТОЛЬКО для строки ИТОГО (13-й столбец) ---
+            ' --- Обработка "Фактическая переработка" ТОЛЬКО для строки ИТОГО (14-й столбец) ---
             Dim marker As Object = ws.Cells(r, COL_MARKER).Value2
             If Not IsNothing(marker) AndAlso String.Equals(CStr(marker), "ИТОГО", StringComparison.CurrentCultureIgnoreCase) Then
 
                 ' Добавляем формулу для пересчета фактической переработки по сотруднику
-                Dim ocell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range) ' 13-й столбец
+                Dim ocell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range) ' 14-й столбец
 
                 ' Ищем начало блока сотрудника (предыдущая строка ИТОГО + 1)
                 Dim formulaStartRow As Integer = r - 1
@@ -669,15 +710,20 @@ Public Module ReportByDepartments
             Next
 
             ' Удаляем колонки в обратном порядке, чтобы не сбить нумерацию
-            ' Удаляем "Работа в праздничные дни" (12-я колонка)
-            Dim holidayCol As Excel.Range = CType(ws.Columns(12), Excel.Range)
+            ' Удаляем "Работа в праздничные дни" (13-я колонка)
+            Dim holidayCol As Excel.Range = CType(ws.Columns(13), Excel.Range)
             holidayCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
             Marshal.FinalReleaseComObject(holidayCol)
 
-            ' Удаляем "Прогулял" (8-я колонка)
-            Dim absentCol As Excel.Range = CType(ws.Columns(8), Excel.Range)
-            absentCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
-            Marshal.FinalReleaseComObject(absentCol)
+            ' Удаляем "Комм. причины отсутствия" (10-я колонка)
+            Dim commCol As Excel.Range = CType(ws.Columns(10), Excel.Range)
+            commCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(commCol)
+
+            ' Удаляем "Причины не выхода" (9-я колонка)
+            Dim reasonCol As Excel.Range = CType(ws.Columns(9), Excel.Range)
+            reasonCol.Delete(Excel.XlDeleteShiftDirection.xlShiftToLeft)
+            Marshal.FinalReleaseComObject(reasonCol)
 
             ' Удаляем "Таб #" (5-я колонка)
             Dim tabCol As Excel.Range = CType(ws.Columns(5), Excel.Range)
@@ -1150,10 +1196,10 @@ Public Module ReportByDepartments
         End Try
     End Sub
 
-    ' Получает график работы для сотрудника из 15-й колонки
+    ' Получает график работы для сотрудника из 16-й колонки
     Private Function GetWorkScheduleForEmployee(ws As Excel.Worksheet, row As Integer) As String
         ' Всегда читаем из 15-й колонки (колонка O)
-        Const SCHEDULE_COLUMN As Integer = 15
+        Const SCHEDULE_COLUMN As Integer = 16
 
         Dim scheduleText As String = CStr(GetCellValue(ws, row, SCHEDULE_COLUMN))
 
