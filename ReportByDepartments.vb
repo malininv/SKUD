@@ -489,14 +489,34 @@ Public Module ReportByDepartments
         Dim paleYellow As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 255, 204)) ' #FFFFCC
         Dim red As Integer = ColorTranslator.ToOle(Color.Red)
 
-        ' Сначала удаляем выходные строки
+        ' Сначала удаляем выходные строки (только если сотрудник не работал)
         For r As Integer = lastRow To 2 Step -1
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
-            'удаляем выходные
-            If IsWeekend(dateVal) AndAlso IsZeroTime(timeVal) Then
-                CType(ws.Rows(r), Excel.Range).Delete(Excel.XlDeleteShiftDirection.xlShiftUp)
-                Continue For
+            Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
+            Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
+            
+            ' Проверяем, является ли строка строкой ИТОГО
+            Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
+            Dim isTotalRow As Boolean = StringEquals(markerVal, "ИТОГО")
+            
+            ' Удаляем выходные только если:
+            ' 1. Это НЕ строка ИТОГО
+            ' 2. День является выходным
+            ' 3. Время в здании равно нулю
+            ' 4. Нет данных о начале/конце рабочего дня (сотрудник не работал)
+            If Not isTotalRow AndAlso IsWeekend(dateVal) AndAlso IsZeroTime(timeVal) Then
+                Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+                Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
+                
+                ' Удаляем только если нет записей о работе
+                If String.IsNullOrEmpty(startTimeStr) OrElse 
+                   startTimeStr.Contains("Нет входа") OrElse 
+                   String.IsNullOrEmpty(endTimeStr) OrElse 
+                   endTimeStr.Contains("Нет выход") Then
+                    CType(ws.Rows(r), Excel.Range).Delete(Excel.XlDeleteShiftDirection.xlShiftUp)
+                    Continue For
+                End If
             End If
         Next
         NormalizeSummaryOvertimeValues(ws)
@@ -509,8 +529,8 @@ Public Module ReportByDepartments
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
 
-            'красим 0 проходы
-            If IsZeroTime(timeVal) Then
+            'красим 0 проходы (не красим для выходных - если строка осталась, значит сотрудник работал)
+            If IsZeroTime(timeVal) AndAlso Not IsWeekend(dateVal) Then
                 Dim tcell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
                 tcell.Interior.Color = paleYellow ' фон желтый
                 tcell.Font.Color = ColorTranslator.ToOle(Color.Red) ' шрифт красный
