@@ -32,15 +32,15 @@
     <ResolveComReferenceSilent>true</ResolveComReferenceSilent>
     <IsWebBootstrapper>False</IsWebBootstrapper>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <PublishUrl>E:\SKUD1.10\</PublishUrl>
+    <PublishUrl>E:\SKUD1.12\</PublishUrl>
     <InstallUrl />
     <TargetCulture>en</TargetCulture>
-    <ApplicationVersion>1.0.0.11</ApplicationVersion>
+    <ApplicationVersion>1.0.0.12</ApplicationVersion>
     <AutoIncrementApplicationRevision>true</AutoIncrementApplicationRevision>
     <UpdateEnabled>true</UpdateEnabled>
     <UpdateInterval>7</UpdateInterval>
     <UpdateIntervalUnits>days</UpdateIntervalUnits>
-    <ProductName>SKUD v1.0.0.10</ProductName>
+    <ProductName>SKUD v1.0.0.12</ProductName>
     <PublisherName />
     <SupportUrl />
     <FriendlyName>SKUD</FriendlyName>

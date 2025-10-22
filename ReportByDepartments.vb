@@ -608,10 +608,18 @@ Public Module ReportByDepartments
                         
                         ' Добавляем комментарий
                         If Not String.IsNullOrEmpty(commentText) Then
+                            Dim comment As Excel.Comment
                             If overtimeCell.Comment Is Nothing Then
-                                overtimeCell.AddComment(commentText)
+                                comment = overtimeCell.AddComment(commentText)
                             Else
-                                overtimeCell.Comment.Text(commentText)
+                                comment = overtimeCell.Comment
+                                comment.Text(commentText)
+                            End If
+                            
+                            ' Настраиваем размер комментария
+                            comment.Shape.TextFrame.AutoSize = True
+                            If comment.Shape.Width > 300 Then
+                                comment.Shape.Width = 300
                             End If
                         End If
                     Else
