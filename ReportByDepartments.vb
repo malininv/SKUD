@@ -519,7 +519,6 @@ Public Module ReportByDepartments
                 End If
             End If
         Next
-        NormalizeSummaryOvertimeValues(ws)
 
         ' Теперь обрабатываем оставшиеся строки
         lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
@@ -529,33 +528,104 @@ Public Module ReportByDepartments
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
 
-            'красим 0 проходы (не красим для выходных - если строка осталась, значит сотрудник работал)
-            If IsZeroTime(timeVal) AndAlso Not IsWeekend(dateVal) Then
+            ' ==================== ПРОВЕРКА НА ВЫХОДНОЙ ИЛИ ПРИЧИНУ ОТСУТСТВИЯ ====================
+            ' Пропускаем строки ИТОГО
+            If StringEquals(ws.Cells(r, COL_MARKER).Value2, "ИТОГО") Then
+                Continue For
+            End If
+            
+            Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+            Dim hasAbsenceReason As Boolean = False
+            Dim lastCol As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            
+            ' Ищем колонку "Причина отсутствия" и проверяем, есть ли в ней значение
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing Then
+                    Dim headerText As String = CStr(headerValue).Trim()
+                    If headerText.Contains("Причина отсутствия") Then
+                        Dim reasonValue As Object = GetCellValue(ws, r, col)
+                        If reasonValue IsNot Nothing AndAlso Not String.IsNullOrEmpty(CStr(reasonValue).Trim()) Then
+                            hasAbsenceReason = True
+                        End If
+                        Exit For
+                    End If
+                End If
+            Next
+
+            'красим 0 проходы (не красим для выходных и не красим если есть причина отсутствия)
+            If IsZeroTime(timeVal) AndAlso Not isWeekendDay AndAlso Not hasAbsenceReason Then
                 Dim tcell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
                 tcell.Interior.Color = paleYellow ' фон желтый
                 tcell.Font.Color = ColorTranslator.ToOle(Color.Red) ' шрифт красный
                 Marshal.FinalReleaseComObject(tcell)
             End If
-
-            ' ==================== АНАЛИЗ ОПОЗДАНИЙ И РАННИХ УХОДОВ ====================
-            ' Анализируем время прихода/ухода только для рабочих дней и не для строк ИТОГО
-            If Not IsWeekend(dateVal) AndAlso Not StringEquals(ws.Cells(r, COL_MARKER).Value2, "ИТОГО") Then
+            
+            ' ==================== ЕСЛИ ВЫХОДНОЙ ИЛИ ЕСТЬ ПРИЧИНА ОТСУТСТВИЯ ====================
+            If isWeekendDay OrElse hasAbsenceReason Then
+                Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
+                Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
+                Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+                Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
+                
+                Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                
+                ' Если есть начало и конец дня, вычисляем разницу и записываем в фактическую переработку
+                If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
+                   Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
+                    
+                    Dim startTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
+                    Dim endTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
+                    
+                    If startTime.HasValue AndAlso endTime.HasValue Then
+                        Dim workHours As Double = (endTime.Value - startTime.Value).TotalHours
+                        
+                        ' Записываем в фактическую переработку в формате Ч:ММ
+                        Dim totalMinutes As Integer = CInt(Math.Abs(workHours) * 60)
+                        Dim resultHours As Integer = totalMinutes \ 60
+                        Dim resultMinutes As Integer = totalMinutes Mod 60
+                        
+                        If workHours < 0 Then
+                            overtimeCell.Value2 = $"-{resultHours}:{resultMinutes:D2}"
+                        Else
+                            overtimeCell.Value2 = $"{resultHours}:{resultMinutes:D2}"
+                        End If
+                        overtimeCell.NumberFormat = "@"
+                    Else
+                        ' Если не удалось распарсить время, ставим 0
+                        overtimeCell.Value2 = 0
+                        overtimeCell.NumberFormat = "@"
+                    End If
+                Else
+                    ' Если нет начала или конца дня, ставим 0
+                    overtimeCell.Value2 = 0
+                    overtimeCell.NumberFormat = "@"
+                End If
+                
+                Marshal.FinalReleaseComObject(overtimeCell)
+            Else
+                ' ==================== ОБЫЧНЫЙ РАБОЧИЙ ДЕНЬ БЕЗ ПРИЧИНЫ ОТСУТСТВИЯ ====================
                 AnalyzeWorkTimeViolations(ws, r)
 
                 ' Проверяем, есть ли вход и выход для сотрудника
-                Dim startTime As String = CStr(GetCellValue(ws, r, COL_START_TIME))
-                Dim endTime As String = CStr(GetCellValue(ws, r, COL_END_TIME))
+                Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
+                Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
+                Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+                Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
 
                 ' Если нет входа или выхода, ставим 0 в фактическую переработку
-                If String.IsNullOrEmpty(startTime) OrElse String.IsNullOrEmpty(endTime) OrElse
-                   startTime.Contains("Нет входа") OrElse endTime.Contains("Нет выход") Then
+                If String.IsNullOrEmpty(startTimeStr) OrElse String.IsNullOrEmpty(endTimeStr) OrElse
+                   startTimeStr.Contains("Нет входа") OrElse endTimeStr.Contains("Нет выход") Then
                     Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
                     overtimeCell.Value2 = 0
+                    overtimeCell.NumberFormat = "@"
                     Marshal.FinalReleaseComObject(overtimeCell)
-
                 End If
             End If
         Next
+
+        ' Нормализуем значения переработки перед суммированием ИТОГО
+        NormalizeSummaryOvertimeValues(ws)
 
         ' ВТОРОЙ ЭТАП: Суммирование для строк ИТОГО
         For r As Integer = lastRow To 2 Step -1
@@ -1311,7 +1381,19 @@ Public Module ReportByDepartments
             End If
         End If
 
-        ' Если не число, пробуем распарсить как текст: "8:30", "08:30", "8-30"
+        ' Если не число, пробуем распарсить как текст: "8:30", "08:30", "8:30:00"
+        ' Сначала пробуем с секундами
+        Dim timePatternWithSeconds As String = "(\d{1,2})[:-](\d{2})[:-](\d{2})"
+        Dim matchWithSeconds As Match = Regex.Match(timeValue, timePatternWithSeconds)
+        
+        If matchWithSeconds.Success Then
+            Dim hour As Integer = Integer.Parse(matchWithSeconds.Groups(1).Value)
+            Dim minute As Integer = Integer.Parse(matchWithSeconds.Groups(2).Value)
+            Dim second As Integer = Integer.Parse(matchWithSeconds.Groups(3).Value)
+            Return New TimeSpan(hour, minute, second)
+        End If
+        
+        ' Если не получилось с секундами, пробуем без них
         Dim timePattern As String = "(\d{1,2})[:-](\d{2})"
         Dim match As Match = Regex.Match(timeValue, timePattern)
 
