@@ -570,6 +570,19 @@ Public Module ReportByDepartments
                 
                 Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
                 
+                ' Определяем текст комментария
+                Dim commentText As String = ""
+                If isWeekendDay AndAlso hasAbsenceReason Then
+                    commentText = "Выходной день + причина отсутствия." & vbCrLf & _
+                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
+                ElseIf isWeekendDay Then
+                    commentText = "Переработка в выходной день." & vbCrLf & _
+                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
+                ElseIf hasAbsenceReason Then
+                    commentText = "Переработка по причине отсутствия." & vbCrLf & _
+                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
+                End If
+                
                 ' Если есть начало и конец дня, вычисляем разницу и записываем в фактическую переработку
                 If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
                    Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
@@ -591,15 +604,27 @@ Public Module ReportByDepartments
                             overtimeCell.Value2 = $"{resultHours}:{resultMinutes:D2}"
                         End If
                         overtimeCell.NumberFormat = "@"
+                        overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                        
+                        ' Добавляем комментарий
+                        If Not String.IsNullOrEmpty(commentText) Then
+                            If overtimeCell.Comment Is Nothing Then
+                                overtimeCell.AddComment(commentText)
+                            Else
+                                overtimeCell.Comment.Text(commentText)
+                            End If
+                        End If
                     Else
                         ' Если не удалось распарсить время, ставим 0
                         overtimeCell.Value2 = 0
                         overtimeCell.NumberFormat = "@"
+                        overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                     End If
                 Else
                     ' Если нет начала или конца дня, ставим 0
                     overtimeCell.Value2 = 0
                     overtimeCell.NumberFormat = "@"
+                    overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                 End If
                 
                 Marshal.FinalReleaseComObject(overtimeCell)
@@ -619,6 +644,7 @@ Public Module ReportByDepartments
                     Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
                     overtimeCell.Value2 = 0
                     overtimeCell.NumberFormat = "@"
+                    overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                     Marshal.FinalReleaseComObject(overtimeCell)
                 End If
             End If
