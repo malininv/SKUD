@@ -495,11 +495,11 @@ Public Module ReportByDepartments
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
             Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
             Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
-            
+
             ' Проверяем, является ли строка строкой ИТОГО
             Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
             Dim isTotalRow As Boolean = StringEquals(markerVal, "ИТОГО")
-            
+
             ' Удаляем выходные только если:
             ' 1. Это НЕ строка ИТОГО
             ' 2. День является выходным
@@ -508,11 +508,11 @@ Public Module ReportByDepartments
             If Not isTotalRow AndAlso IsWeekend(dateVal) AndAlso IsZeroTime(timeVal) Then
                 Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
                 Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
-                
+
                 ' Удаляем только если нет записей о работе
-                If String.IsNullOrEmpty(startTimeStr) OrElse 
-                   startTimeStr.Contains("Нет входа") OrElse 
-                   String.IsNullOrEmpty(endTimeStr) OrElse 
+                If String.IsNullOrEmpty(startTimeStr) OrElse
+                   startTimeStr.Contains("Нет входа") OrElse
+                   String.IsNullOrEmpty(endTimeStr) OrElse
                    endTimeStr.Contains("Нет выход") Then
                     CType(ws.Rows(r), Excel.Range).Delete(Excel.XlDeleteShiftDirection.xlShiftUp)
                     Continue For
@@ -533,11 +533,11 @@ Public Module ReportByDepartments
             If StringEquals(ws.Cells(r, COL_MARKER).Value2, "ИТОГО") Then
                 Continue For
             End If
-            
+
             Dim isWeekendDay As Boolean = IsWeekend(dateVal)
             Dim hasAbsenceReason As Boolean = False
             Dim lastCol As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
-            
+
             ' Ищем колонку "Причина отсутствия" и проверяем, есть ли в ней значение
             For col As Integer = 1 To lastCol
                 Dim headerValue As Object = GetCellValue(ws, 1, col)
@@ -560,81 +560,78 @@ Public Module ReportByDepartments
                 tcell.Font.Color = ColorTranslator.ToOle(Color.Red) ' шрифт красный
                 Marshal.FinalReleaseComObject(tcell)
             End If
-            
+
             ' ==================== ЕСЛИ ВЫХОДНОЙ ИЛИ ЕСТЬ ПРИЧИНА ОТСУТСТВИЯ ====================
             If isWeekendDay OrElse hasAbsenceReason Then
                 Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
                 Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
                 Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
                 Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
-                
+
                 Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
-                
+
+                ' Очищаем формат ячейки перед записью нового значения
+                overtimeCell.ClearFormats()
+                overtimeCell.NumberFormat = "@"
+
                 ' Определяем текст комментария
                 Dim commentText As String = ""
                 If isWeekendDay AndAlso hasAbsenceReason Then
-                    commentText = "Выходной день + причина отсутствия." & vbCrLf & _
+                    commentText = "Выходной день + причина отсутствия." & vbCrLf &
                                   "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
                 ElseIf isWeekendDay Then
-                    commentText = "Переработка в выходной день." & vbCrLf & _
+                    commentText = "Переработка в выходной день." & vbCrLf &
                                   "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
                 ElseIf hasAbsenceReason Then
-                    commentText = "Переработка по причине отсутствия." & vbCrLf & _
+                    commentText = "Переработка по причине отсутствия." & vbCrLf &
                                   "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
                 End If
-                
+
                 ' Если есть начало и конец дня, вычисляем разницу и записываем в фактическую переработку
                 If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
                    Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
-                    
+
                     Dim startTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
                     Dim endTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
-                    
+
                     If startTime.HasValue AndAlso endTime.HasValue Then
                         Dim workHours As Double = (endTime.Value - startTime.Value).TotalHours
-                        
+
                         ' Записываем в фактическую переработку в формате Ч:ММ
                         Dim totalMinutes As Integer = CInt(Math.Abs(workHours) * 60)
                         Dim resultHours As Integer = totalMinutes \ 60
                         Dim resultMinutes As Integer = totalMinutes Mod 60
-                        
+
+                        Dim timeString As String
                         If workHours < 0 Then
-                            overtimeCell.Value2 = $"-{resultHours}:{resultMinutes:D2}"
+                            timeString = $"-{resultHours}:{resultMinutes:D2}"
                         Else
-                            overtimeCell.Value2 = $"{resultHours}:{resultMinutes:D2}"
+                            timeString = $"{resultHours}:{resultMinutes:D2}"
                         End If
-                        overtimeCell.NumberFormat = "@"
+
+                        overtimeCell.Value = timeString
                         overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-                        
+
                         ' Добавляем комментарий
                         If Not String.IsNullOrEmpty(commentText) Then
-                            Dim comment As Excel.Comment
-                            If overtimeCell.Comment Is Nothing Then
-                                comment = overtimeCell.AddComment(commentText)
-                            Else
-                                comment = overtimeCell.Comment
-                                comment.Text(commentText)
+                            If overtimeCell.Comment IsNot Nothing Then
+                                overtimeCell.Comment.Delete()
                             End If
-                            
-                            ' Настраиваем размер комментария
+
+                            Dim comment As Excel.Comment = overtimeCell.AddComment(commentText)
                             comment.Shape.TextFrame.AutoSize = True
-                            If comment.Shape.Width > 300 Then
-                                comment.Shape.Width = 300
-                            End If
                         End If
                     Else
                         ' Если не удалось распарсить время, ставим 0
-                        overtimeCell.Value2 = 0
-                        overtimeCell.NumberFormat = "@"
+                        overtimeCell.Value = "0"
                         overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                     End If
                 Else
                     ' Если нет начала или конца дня, ставим 0
-                    overtimeCell.Value2 = 0
-                    overtimeCell.NumberFormat = "@"
+                    overtimeCell.Value = "0"
                     overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                 End If
-                
+
                 Marshal.FinalReleaseComObject(overtimeCell)
             Else
                 ' ==================== ОБЫЧНЫЙ РАБОЧИЙ ДЕНЬ БЕЗ ПРИЧИНЫ ОТСУТСТВИЯ ====================
@@ -650,8 +647,9 @@ Public Module ReportByDepartments
                 If String.IsNullOrEmpty(startTimeStr) OrElse String.IsNullOrEmpty(endTimeStr) OrElse
                    startTimeStr.Contains("Нет входа") OrElse endTimeStr.Contains("Нет выход") Then
                     Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
-                    overtimeCell.Value2 = 0
+                    overtimeCell.ClearFormats()
                     overtimeCell.NumberFormat = "@"
+                    overtimeCell.Value = "0"
                     overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                     Marshal.FinalReleaseComObject(overtimeCell)
                 End If
@@ -808,7 +806,6 @@ Public Module ReportByDepartments
             Runtime.InteropServices.Marshal.FinalReleaseComObject(borders)
             Runtime.InteropServices.Marshal.FinalReleaseComObject(rngAll)
         End If
-
     End Sub
 
     ' Удаляет ненужные колонки из листа и переносит "ИТОГО" во вторую колонку
