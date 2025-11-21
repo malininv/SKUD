@@ -122,10 +122,10 @@ Public Module ReportByDepartments
                             destHeaderRow.Font.Bold = True
                             Marshal.FinalReleaseComObject(headerRowRange)
                             Marshal.FinalReleaseComObject(destHeaderRow)
-                            
+
                             ' Переименовываем заголовки
                             RenameHeaders(wsTarget)
-                            
+
                             created(dept) = wsTarget
                         End If
 
@@ -136,16 +136,24 @@ Public Module ReportByDepartments
                         Marshal.FinalReleaseComObject(srcRange)
                         Marshal.FinalReleaseComObject(destPaste)
 
-                        BeautifySheet(wsTarget)
-                        
-                        Dim rngFit As Excel.Range = wsTarget.UsedRange
-                        rngFit.Columns.AutoFit()
-                        Marshal.FinalReleaseComObject(rngFit)
-                        
-                        ' Закрепляем заголовок
-                        FreezeHeaderRow(wsTarget)
+                        ' BeautifySheet будет вызван после цикла для всех листов
                     End If
                     startCopyRow = r + 1
+                End If
+            Next
+
+            ' Обрабатываем все созданные листы (BeautifySheet вызывается только один раз для каждого листа)
+            For Each kvp In created
+                Dim wsTarget As Excel.Worksheet = kvp.Value
+                If wsTarget IsNot Nothing Then
+                    BeautifySheet(wsTarget)
+
+                    Dim rngFit As Excel.Range = wsTarget.UsedRange
+                    rngFit.Columns.AutoFit()
+                    Marshal.FinalReleaseComObject(rngFit)
+
+                    ' Закрепляем заголовок
+                    FreezeHeaderRow(wsTarget)
                 End If
             Next
 
@@ -283,10 +291,10 @@ Public Module ReportByDepartments
                         destHeaderRow.Font.Bold = True
                         Marshal.FinalReleaseComObject(headerRowRange)
                         Marshal.FinalReleaseComObject(destHeaderRow)
-                        
+
                         ' Переименовываем заголовки
                         RenameHeaders(wsTarget)
-                        
+
                         createdSheets(key) = wsTarget
                         deptHasAnySheet.Add(deptBase)
                     End If
@@ -299,17 +307,7 @@ Public Module ReportByDepartments
                     Marshal.FinalReleaseComObject(srcRange)
                     Marshal.FinalReleaseComObject(destPaste)
 
-                    BeautifySheet(wsTarget)
-                    
-                    Dim rngFit As Excel.Range = wsTarget.UsedRange
-                    rngFit.Columns.AutoFit()
-                    Marshal.FinalReleaseComObject(rngFit)
-                    
-                    ' Закрепляем заголовок
-                    FreezeHeaderRow(wsTarget)
-
-                    ' Save dept workbook incrementally
-                    wbDept.Save()
+                    ' BeautifySheet будет вызван после цикла для всех листов
 
                     startCopyRow = r + 1
                 End If
@@ -319,7 +317,21 @@ Public Module ReportByDepartments
             For Each kv In deptToWb
                 Dim wbDept As Excel.Workbook = kv.Value
 
-                ' Удаляем ненужные колонки из всех листов перед сохранением
+                ' Обрабатываем все листы (BeautifySheet вызывается только один раз для каждого листа)
+                For Each ws As Excel.Worksheet In wbDept.Sheets
+                    If ws.Name <> "Отчет" OrElse ws.UsedRange.Rows.Count > 1 Then
+                        BeautifySheet(ws)
+
+                        Dim rngFit As Excel.Range = ws.UsedRange
+                        rngFit.Columns.AutoFit()
+                        Marshal.FinalReleaseComObject(rngFit)
+
+                        ' Закрепляем заголовок
+                        FreezeHeaderRow(ws)
+                    End If
+                Next
+
+                ' Удаляем ненужные колонки из всех листов
                 For Each ws As Excel.Worksheet In wbDept.Sheets
                     RemoveUnnecessaryColumns(ws)
                 Next
@@ -362,31 +374,31 @@ Public Module ReportByDepartments
         ' Единая функция для переименования всех заголовков
         Try
             Dim lastCol As Integer = ws.Cells(1, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
-            
+
             For col As Integer = 1 To lastCol
                 Dim headerCell As Excel.Range = CType(ws.Cells(1, col), Excel.Range)
                 Dim headerValue As Object = GetCellValue(ws, 1, col)
-                
+
                 If Not IsNothing(headerValue) Then
                     Dim headerText As String = CStr(headerValue).Trim()
                     Dim newHeaderText As String = headerText
-                    
+
                     ' Переименовываем заголовки
                     If headerText.Contains("Прогулял") Then
                         newHeaderText = "Находился вне здания (Ч:М)"
-                        
+
                         ' Добавляем комментарий для этого заголовка
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Delete()
                         End If
                         headerCell.AddComment("Время, которое сотрудник находился вне здания в необеденное время")
-                        
+
                         ' Настраиваем размер комментария
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Shape.Width = 400
                             headerCell.Comment.Shape.Height = 150
                             headerCell.Comment.Shape.TextFrame.AutoSize = True
-                            
+
                             ' Увеличиваем padding (отступы) для комментария
                             With headerCell.Comment.Shape.TextFrame
                                 .MarginLeft = 10
@@ -395,22 +407,22 @@ Public Module ReportByDepartments
                                 .MarginBottom = 10
                             End With
                         End If
-                        
+
                     ElseIf headerText.Contains("Находился в здании") AndAlso Not headerText.Contains("(Ч:М)") Then
                         newHeaderText = headerText & " (Ч:М)"
 
-                         ' Добавляем комментарий для этого заголовка
+                        ' Добавляем комментарий для этого заголовка
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Delete()
                         End If
                         headerCell.AddComment("Время, которое сотрудник находился в здании, исключая обеденное время")
-                        
+
                         ' Настраиваем размер комментария
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Shape.Width = 400
                             headerCell.Comment.Shape.Height = 150
                             headerCell.Comment.Shape.TextFrame.AutoSize = True
-                            
+
                             ' Увеличиваем padding (отступы) для комментария
                             With headerCell.Comment.Shape.TextFrame
                                 .MarginLeft = 10
@@ -421,18 +433,18 @@ Public Module ReportByDepartments
                         End If
                     ElseIf headerText.Contains("Фактическая переработка") AndAlso Not headerText.Contains("(Ч:М)") Then
                         newHeaderText = headerText & " (Ч:М)"
-                         ' Добавляем комментарий для этого заголовка
+                        ' Добавляем комментарий для этого заголовка
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Delete()
                         End If
-                        headerCell.AddComment("(Утренняя переработка + Вечерняя переработка) - Находился вне здания")
-                        
+                        headerCell.AddComment("(Утренняя переработка + Вечерняя переработка) - Находился вне здания (исключая время обеда)")
+
                         ' Настраиваем размер комментария
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Shape.Width = 400
                             headerCell.Comment.Shape.Height = 150
                             headerCell.Comment.Shape.TextFrame.AutoSize = True
-                            
+
                             ' Увеличиваем padding (отступы) для комментария
                             With headerCell.Comment.Shape.TextFrame
                                 .MarginLeft = 10
@@ -442,13 +454,13 @@ Public Module ReportByDepartments
                             End With
                         End If
                     End If
-                    
+
                     ' Обновляем заголовок, если он изменился
                     If newHeaderText <> headerText Then
                         headerCell.Value2 = newHeaderText
                     End If
                 End If
-                
+
                 Marshal.FinalReleaseComObject(headerCell)
             Next
         Catch ex As Exception
@@ -489,7 +501,8 @@ Public Module ReportByDepartments
         Dim paleYellow As Integer = ColorTranslator.ToOle(Color.FromArgb(255, 255, 204)) ' #FFFFCC
         Dim red As Integer = ColorTranslator.ToOle(Color.Red)
 
-        ' Сначала удаляем выходные строки (только если сотрудник не работал)
+        ' ЭТАП 1: Удаление выходных строк (только если сотрудник не работал)
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
         For r As Integer = lastRow To 2 Step -1
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
@@ -520,10 +533,92 @@ Public Module ReportByDepartments
             End If
         Next
 
-        ' Теперь обрабатываем оставшиеся строки
+        ' ЭТАП 2: Добавление времени обеда ко всем строкам переработки
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+        
+        For r As Integer = 2 To lastRow
+            ' Пропускаем строки ИТОГО
+            Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
+            If StringEquals(markerVal, "ИТОГО") Then Continue For
+
+            ' Проверяем, выходной ли день
+            Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
+            Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+
+            ' Проверяем, есть ли причина отсутствия
+            Dim hasAbsenceReason As Boolean = False
+            Dim lastCol As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing AndAlso CStr(headerValue).Trim().Contains("Причина отсутствия") Then
+                    Dim reasonValue As Object = GetCellValue(ws, r, col)
+                    If reasonValue IsNot Nothing AndAlso Not String.IsNullOrEmpty(CStr(reasonValue).Trim()) Then
+                        hasAbsenceReason = True
+                    End If
+                    Exit For
+                End If
+            Next
+
+            ' Для выходных и дней с причиной отсутствия не добавляем обед
+            If isWeekendDay OrElse hasAbsenceReason Then
+                Continue For
+            End If
+
+            ' Читаем текущее значение переработки
+            Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+            Dim oldHours As Double = ParseOvertimeHours(overtimeCell)
+
+            ' Получаем максимальное время обеда из графика работы
+            Dim workSchedule As String = GetWorkScheduleForEmployee(ws, r)
+            Dim maxLunchMinutes As Integer = ExtractLunchMinutesFromSchedule(workSchedule)
+
+            ' Находим колонку "Прогулял" / "Находился вне здания" и читаем время обеда
+            Dim lunchHours As Double = 0
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing Then
+                    Dim headerText As String = CStr(headerValue).Trim()
+                    If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
+                        Dim lunchCell As Excel.Range = CType(ws.Cells(r, col), Excel.Range)
+                        Dim lunchValue As Double = ParseOvertimeHours(lunchCell)
+                        Marshal.FinalReleaseComObject(lunchCell)
+
+                        ' Ограничиваем обед максимальным значением из графика
+                        If lunchValue > 0 Then
+                            lunchHours = Math.Min(lunchValue, maxLunchMinutes / 60.0)
+                        End If
+                        Exit For
+                    End If
+                End If
+            Next
+
+            ' Добавляем обед к переработке
+            If lunchHours > 0 Then
+                Dim newHours As Double = oldHours + lunchHours
+                
+                ' Записываем новое значение в формате Ч:ММ
+                Dim totalMinutes As Integer = CInt(Math.Abs(newHours) * 60)
+                Dim resultHours As Integer = totalMinutes \ 60
+                Dim resultMinutes As Integer = totalMinutes Mod 60
+
+                Dim timeString As String
+                If newHours < 0 Then
+                    timeString = $"-{resultHours}:{resultMinutes:D2}"
+                Else
+                    timeString = $"{resultHours}:{resultMinutes:D2}"
+                End If
+
+                overtimeCell.NumberFormat = "@"
+                overtimeCell.Value = timeString
+                overtimeCell.HorizontalAlignment = If(newHours >= 0, Excel.XlHAlign.xlHAlignRight, Excel.XlHAlign.xlHAlignLeft)
+            End If
+
+            Marshal.FinalReleaseComObject(overtimeCell)
+        Next
+
+        ' ЭТАП 3: Окрашивание и анализ времени
         lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
 
-        ' ПЕРВЫЙ ЭТАП: Обработка всех строк (окрашивание, анализ времени, установка 0)
         For r As Integer = lastRow To 2 Step -1
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim timeVal As Object = GetCellValue(ws, r, COL_TIME)
@@ -563,31 +658,12 @@ Public Module ReportByDepartments
 
             ' ==================== ЕСЛИ ВЫХОДНОЙ ИЛИ ЕСТЬ ПРИЧИНА ОТСУТСТВИЯ ====================
             If isWeekendDay OrElse hasAbsenceReason Then
+                ' Для выходных и дней с причиной отсутствия: переработка = конец дня - начало дня (БЕЗ обеда)
                 Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
                 Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
                 Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
                 Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
 
-                Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
-
-                ' Очищаем формат ячейки перед записью нового значения
-                overtimeCell.ClearFormats()
-                overtimeCell.NumberFormat = "@"
-
-                ' Определяем текст комментария
-                Dim commentText As String = ""
-                If isWeekendDay AndAlso hasAbsenceReason Then
-                    commentText = "Выходной день + причина отсутствия." & vbCrLf &
-                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
-                ElseIf isWeekendDay Then
-                    commentText = "Переработка в выходной день." & vbCrLf &
-                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
-                ElseIf hasAbsenceReason Then
-                    commentText = "Переработка по причине отсутствия." & vbCrLf &
-                                  "Расчет: конец дня - начало дня, без учета рабочего графика и обеда."
-                End If
-
-                ' Если есть начало и конец дня, вычисляем разницу и записываем в фактическую переработку
                 If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
                    Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
 
@@ -609,30 +685,40 @@ Public Module ReportByDepartments
                             timeString = $"{resultHours}:{resultMinutes:D2}"
                         End If
 
+                        Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                        overtimeCell.NumberFormat = "@"
                         overtimeCell.Value = timeString
-                        overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-
-                        ' Добавляем комментарий
-                        If Not String.IsNullOrEmpty(commentText) Then
-                            If overtimeCell.Comment IsNot Nothing Then
-                                overtimeCell.Comment.Delete()
-                            End If
-
-                            Dim comment As Excel.Comment = overtimeCell.AddComment(commentText)
-                            comment.Shape.TextFrame.AutoSize = True
-                        End If
-                    Else
-                        ' Если не удалось распарсить время, ставим 0
-                        overtimeCell.Value = "0"
-                        overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                        overtimeCell.HorizontalAlignment = If(workHours >= 0, Excel.XlHAlign.xlHAlignRight, Excel.XlHAlign.xlHAlignLeft)
+                        
+                        ' Добавляем комментарий для выходного/причины отсутствия
+                        Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
+                        Dim commentDateStr As String = If(dateCell.Value2 IsNot Nothing, dateCell.Value2.ToString(), "")
+                        Dim commentCellAddr As String = overtimeCell.Address(False, False)
+                        
+                        AddOvertimeComment(overtimeCell, 0, workHours, commentDateStr, commentCellAddr, 0, 
+                                          commentCellAddr, timeString, timeString, "@")
+                        
+                        Marshal.FinalReleaseComObject(dateCell)
+                        Marshal.FinalReleaseComObject(overtimeCell)
                     End If
                 Else
-                    ' Если нет начала или конца дня, ставим 0
-                    overtimeCell.Value = "0"
+                    ' Если нет отработанного времени, ставим 0:00
+                    Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                    overtimeCell.NumberFormat = "@"
+                    overtimeCell.Value = "0:00"
                     overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                    
+                    ' Добавляем комментарий для выходного/причины отсутствия без отработанного времени
+                    Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
+                    Dim commentDateStr As String = If(dateCell.Value2 IsNot Nothing, dateCell.Value2.ToString(), "")
+                    Dim commentCellAddr As String = overtimeCell.Address(False, False)
+                    
+                    AddOvertimeComment(overtimeCell, 0, 0, commentDateStr, commentCellAddr, 0,
+                                      commentCellAddr, "0:00", "0:00", "@")
+                    
+                    Marshal.FinalReleaseComObject(dateCell)
+                    Marshal.FinalReleaseComObject(overtimeCell)
                 End If
-
-                Marshal.FinalReleaseComObject(overtimeCell)
             Else
                 ' ==================== ОБЫЧНЫЙ РАБОЧИЙ ДЕНЬ БЕЗ ПРИЧИНЫ ОТСУТСТВИЯ ====================
                 AnalyzeWorkTimeViolations(ws, r)
@@ -659,7 +745,7 @@ Public Module ReportByDepartments
         ' Нормализуем значения переработки перед суммированием ИТОГО
         NormalizeSummaryOvertimeValues(ws)
 
-        ' ВТОРОЙ ЭТАП: Суммирование для строк ИТОГО
+        ' ЭТАП 4: Суммирование для строк ИТОГО
         For r As Integer = lastRow To 2 Step -1
 
             ' --- Обработка "Фактическая переработка" ТОЛЬКО для строки ИТОГО (14-й столбец) ---
@@ -1047,13 +1133,17 @@ Public Module ReportByDepartments
             Return False
         End If
 
-        Dim hh As Double
-        Dim mm As Double = 0
-        Dim ss As Double = 0
+        Dim hh As Integer
+        Dim mm As Integer = 0
+        Dim ss As Integer = 0
 
-        If Not Double.TryParse(parts(0), NumberStyles.Float, CultureInfo.CurrentCulture, hh) Then Return False
-        If parts.Length >= 2 AndAlso Not Double.TryParse(parts(1), NumberStyles.Float, CultureInfo.CurrentCulture, mm) Then Return False
-        If parts.Length >= 3 Then Double.TryParse(parts(2), NumberStyles.Float, CultureInfo.CurrentCulture, ss)
+        If Not Integer.TryParse(parts(0), NumberStyles.Integer, CultureInfo.InvariantCulture, hh) Then
+            Return False
+        End If
+        If parts.Length >= 2 AndAlso Not Integer.TryParse(parts(1), NumberStyles.Integer, CultureInfo.InvariantCulture, mm) Then
+            Return False
+        End If
+        If parts.Length >= 3 Then Integer.TryParse(parts(2), NumberStyles.Integer, CultureInfo.InvariantCulture, ss)
 
         hours = sign * (hh + mm / 60.0R + ss / 3600.0R)
         Return True
@@ -1349,6 +1439,22 @@ Public Module ReportByDepartments
         Return Nothing
     End Function
 
+    ' Извлекает время обеда из текста графика (формат "обед:60" или "обед 60")
+    Private Function ExtractLunchMinutesFromSchedule(scheduleText As String) As Integer
+        If String.IsNullOrEmpty(scheduleText) Then Return 45 ' По умолчанию 45 минут
+
+        ' Ищем паттерн "обед:60", "обед 60", "обед: 60"
+        Dim lunchPattern As String = "обед\s*:?\s*(\d+)"
+        Dim match As Match = Regex.Match(scheduleText, lunchPattern, RegexOptions.IgnoreCase)
+
+        If match.Success Then
+            Dim minutes As Integer = Integer.Parse(match.Groups(1).Value)
+            Return minutes
+        End If
+
+        Return 45 ' По умолчанию 45 минут
+    End Function
+
     ' Извлекает время окончания работы из текста графика
     Private Function ExtractEndTimeFromSchedule(scheduleText As String, isFriday As Boolean) As TimeSpan?
         If String.IsNullOrEmpty(scheduleText) Then Return Nothing
@@ -1416,14 +1522,14 @@ Public Module ReportByDepartments
         ' Сначала пробуем с секундами
         Dim timePatternWithSeconds As String = "(\d{1,2})[:-](\d{2})[:-](\d{2})"
         Dim matchWithSeconds As Match = Regex.Match(timeValue, timePatternWithSeconds)
-        
+
         If matchWithSeconds.Success Then
             Dim hour As Integer = Integer.Parse(matchWithSeconds.Groups(1).Value)
             Dim minute As Integer = Integer.Parse(matchWithSeconds.Groups(2).Value)
             Dim second As Integer = Integer.Parse(matchWithSeconds.Groups(3).Value)
             Return New TimeSpan(hour, minute, second)
         End If
-        
+
         ' Если не получилось с секундами, пробуем без них
         Dim timePattern As String = "(\d{1,2})[:-](\d{2})"
         Dim match As Match = Regex.Match(timeValue, timePattern)
@@ -1526,6 +1632,91 @@ Public Module ReportByDepartments
         Return String.Empty
     End Function
 
+    Private Function ColumnIndexToLetter(columnIndex As Integer) As String
+        Dim columnLetter As String = ""
+        Dim temp As Integer
+
+        While columnIndex > 0
+            temp = (columnIndex - 1) Mod 26
+            columnLetter = Chr(temp + 65) & columnLetter
+            columnIndex = (columnIndex - temp - 1) \ 26
+        End While
+
+        Return columnLetter
+    End Function
+
+    Private Sub AddOvertimeComment(cell As Excel.Range, oldHours As Double, newHours As Double, dateStr As String, cellAddress As String, Optional lunchHours As Double = 0, Optional sourceOvertimeCell As String = "", Optional sourceOvertimeText As String = "", Optional sourceOvertimeValue2 As String = "", Optional sourceOvertimeFormat As String = "")
+        If cell Is Nothing Then Return
+
+        Try
+            ' Удаляем старый комментарий, если есть
+            If cell.Comment IsNot Nothing Then
+                cell.Comment.Delete()
+            End If
+
+            ' Форматируем старое время
+            Dim lunchMinutes As Integer = CInt(Math.Round(lunchHours * 60.0R))
+            Dim absOldHours As Double = Math.Abs(oldHours)
+            Dim oldMinutes As Integer = CInt(Math.Round(absOldHours * 60.0R, MidpointRounding.AwayFromZero))
+            Dim oldH As Integer = oldMinutes \ 60
+            Dim oldM As Integer = oldMinutes Mod 60
+            Dim oldTimeStr As String
+            If oldMinutes = 0 Then
+                oldTimeStr = "0:00"
+            ElseIf oldHours < 0 Then
+                oldTimeStr = $"-{oldH}:{oldM:D2}"
+            Else
+                oldTimeStr = $"{oldH}:{oldM:D2}"
+            End If
+
+            ' Форматируем новое время
+            Dim absNewHours As Double = Math.Abs(newHours)
+            Dim newMinutes As Integer = CInt(Math.Round(absNewHours * 60.0R, MidpointRounding.AwayFromZero))
+            Dim newH As Integer = newMinutes \ 60
+            Dim newM As Integer = newMinutes Mod 60
+            Dim newTimeStr As String
+            If newMinutes = 0 Then
+                newTimeStr = "0:00"
+            ElseIf newHours < 0 Then
+                newTimeStr = $"-{newH}:{newM:D2}"
+            Else
+                newTimeStr = $"{newH}:{newM:D2}"
+            End If
+
+            ' Добавляем комментарий со старым и новым временем, датой и адресом
+            Dim sourceInfo As String = If(String.IsNullOrEmpty(sourceOvertimeCell), cellAddress, sourceOvertimeCell)
+            Dim commentText As String = $"=== ИСХОДНЫЕ ДАННЫЕ ===" & vbCrLf &
+                                       $"Дата: {dateStr}" & vbCrLf &
+                                       $"Ячейка переработки: {sourceInfo}" & vbCrLf &
+                                       $"" & vbCrLf &
+                                       $"Что в ячейке Excel:" & vbCrLf &
+                                       $"  cell.Text = '{sourceOvertimeText}'" & vbCrLf &
+                                       $"  cell.Value2 = '{sourceOvertimeValue2}'" & vbCrLf &
+                                       $"  cell.NumberFormat = '{sourceOvertimeFormat}'" & vbCrLf &
+                                       $"" & vbCrLf &
+                                       $"Распарсено как: {oldTimeStr} ({oldHours:F4} часа)" & vbCrLf &
+                                       vbCrLf &
+                                       $"=== ОБРАБОТКА ===" & vbCrLf
+
+            If lunchMinutes > 0 Then
+                commentText &= $"Добавлено времени обеда: {lunchMinutes} мин" & vbCrLf &
+                              $"Новое значение: {newTimeStr} ({newHours:F4} часа)" & vbCrLf &
+                              $"" & vbCrLf &
+                              $"Расчет: {oldTimeStr} + {lunchMinutes} мин = {newTimeStr}"
+            Else
+                commentText &= $"Время обеда не добавлено" & vbCrLf &
+                              $"Новое значение: {newTimeStr} (без изменений)"
+            End If
+
+            Dim comment As Excel.Comment = cell.AddComment(commentText)
+            ' Автоматический размер комментария
+            If comment IsNot Nothing AndAlso comment.Shape IsNot Nothing Then
+                comment.Shape.TextFrame.AutoSize = True
+            End If
+        Catch ex As Exception
+            ' Игнорируем ошибки при работе с комментариями
+        End Try
+    End Sub
 
 End Module
 

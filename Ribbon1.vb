@@ -21,10 +21,6 @@ Public Class Ribbon1
                 Dim fname As String = Path.GetFileName(savedPath)
                 MessageBox.Show($"Готово: файл '{fname}' сохранён рядом с исходной книгой.",
                                 "Отделы по листам (активная)", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                Try
-                    Process.Start("explorer.exe", "/select,""" & savedPath & """")
-                Catch
-                End Try
             Else
                 MessageBox.Show("Файл не был сохранён.", "Отделы по листам (активная)",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information)
@@ -47,10 +43,6 @@ Public Class Ribbon1
                         Dim fname As String = Path.GetFileName(savedPath)
                         MessageBox.Show($"Готово: файл '{fname}' сохранён рядом с исходной книгой.",
                                         "Отделы по листам (файл)", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                        Try
-                            Process.Start("explorer.exe", "/select,""" & savedPath & """")
-                        Catch
-                        End Try
                     Else
                         MessageBox.Show("Файл не был сохранён.", "Отделы по листам (файл)",
                                         MessageBoxButtons.OK, MessageBoxIcon.Information)
@@ -145,15 +137,8 @@ Public Class Ribbon1
             Return
         End If
 
-        Dim folder As String = Path.GetDirectoryName(paths(0))
         Dim msg As String = "Созданы файлы:" & Environment.NewLine & String.Join(Environment.NewLine, paths)
         MessageBox.Show(msg, caption, MessageBoxButtons.OK, MessageBoxIcon.Information)
-
-        ' Откроем папку с результатами
-        Try
-            Process.Start("explorer.exe", folder)
-        Catch
-        End Try
     End Sub
 
     ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ===
