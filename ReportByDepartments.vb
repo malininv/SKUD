@@ -692,12 +692,8 @@ Public Module ReportByDepartments
                         
                         ' Добавляем комментарий для выходного/причины отсутствия
                         Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
-                        Dim commentDateStr As String = If(dateCell.Value2 IsNot Nothing, dateCell.Value2.ToString(), "")
-                        Dim commentCellAddr As String = overtimeCell.Address(False, False)
-                        
-                        AddOvertimeComment(overtimeCell, 0, workHours, commentDateStr, commentCellAddr, 0, 
-                                          commentCellAddr, timeString, timeString, "@")
-                        
+                        Dim commentText As String = GetSimpleComment(dateCell.Value2, isWeekendDay, hasAbsenceReason)
+                        AddSimpleComment(overtimeCell, commentText)
                         Marshal.FinalReleaseComObject(dateCell)
                         Marshal.FinalReleaseComObject(overtimeCell)
                     End If
@@ -710,12 +706,8 @@ Public Module ReportByDepartments
                     
                     ' Добавляем комментарий для выходного/причины отсутствия без отработанного времени
                     Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
-                    Dim commentDateStr As String = If(dateCell.Value2 IsNot Nothing, dateCell.Value2.ToString(), "")
-                    Dim commentCellAddr As String = overtimeCell.Address(False, False)
-                    
-                    AddOvertimeComment(overtimeCell, 0, 0, commentDateStr, commentCellAddr, 0,
-                                      commentCellAddr, "0:00", "0:00", "@")
-                    
+                    Dim commentText As String = GetSimpleComment(dateCell.Value2, isWeekendDay, hasAbsenceReason)
+                    AddSimpleComment(overtimeCell, commentText)
                     Marshal.FinalReleaseComObject(dateCell)
                     Marshal.FinalReleaseComObject(overtimeCell)
                 End If
@@ -1645,75 +1637,54 @@ Public Module ReportByDepartments
         Return columnLetter
     End Function
 
-    Private Sub AddOvertimeComment(cell As Excel.Range, oldHours As Double, newHours As Double, dateStr As String, cellAddress As String, Optional lunchHours As Double = 0, Optional sourceOvertimeCell As String = "", Optional sourceOvertimeText As String = "", Optional sourceOvertimeValue2 As String = "", Optional sourceOvertimeFormat As String = "")
-        If cell Is Nothing Then Return
+    Private Function GetSimpleComment(dateValue As Object, isWeekend As Boolean, hasAbsenceReason As Boolean) As String
+        ' Если есть причина отсутствия - возвращаем соответствующий текст
+        If hasAbsenceReason Then
+            Return "По причине отсутствия"
+        End If
+        
+        ' Если выходной - определяем день недели
+        If isWeekend AndAlso dateValue IsNot Nothing Then
+            Try
+                Dim dateObj As Date
+                If TypeOf dateValue Is Date Then
+                    dateObj = CDate(dateValue)
+                ElseIf TypeOf dateValue Is Double Then
+                    dateObj = Date.FromOADate(CDbl(dateValue))
+                Else
+                    Date.TryParse(dateValue.ToString(), dateObj)
+                End If
+                
+                Dim dayOfWeek As DayOfWeek = dateObj.DayOfWeek
+                If dayOfWeek = DayOfWeek.Saturday Then
+                    Return "Суббота"
+                ElseIf dayOfWeek = DayOfWeek.Sunday Then
+                    Return "Воскресенье"
+                End If
+            Catch
+                ' Если не удалось определить дату, просто вернем "Выходной"
+                Return "Выходной"
+            End Try
+        End If
+        
+        Return ""
+    End Function
 
+    Private Sub AddSimpleComment(cell As Excel.Range, commentText As String)
+        If cell Is Nothing OrElse String.IsNullOrEmpty(commentText) Then Return
+        
         Try
             ' Удаляем старый комментарий, если есть
             If cell.Comment IsNot Nothing Then
                 cell.Comment.Delete()
             End If
-
-            ' Форматируем старое время
-            Dim lunchMinutes As Integer = CInt(Math.Round(lunchHours * 60.0R))
-            Dim absOldHours As Double = Math.Abs(oldHours)
-            Dim oldMinutes As Integer = CInt(Math.Round(absOldHours * 60.0R, MidpointRounding.AwayFromZero))
-            Dim oldH As Integer = oldMinutes \ 60
-            Dim oldM As Integer = oldMinutes Mod 60
-            Dim oldTimeStr As String
-            If oldMinutes = 0 Then
-                oldTimeStr = "0:00"
-            ElseIf oldHours < 0 Then
-                oldTimeStr = $"-{oldH}:{oldM:D2}"
-            Else
-                oldTimeStr = $"{oldH}:{oldM:D2}"
-            End If
-
-            ' Форматируем новое время
-            Dim absNewHours As Double = Math.Abs(newHours)
-            Dim newMinutes As Integer = CInt(Math.Round(absNewHours * 60.0R, MidpointRounding.AwayFromZero))
-            Dim newH As Integer = newMinutes \ 60
-            Dim newM As Integer = newMinutes Mod 60
-            Dim newTimeStr As String
-            If newMinutes = 0 Then
-                newTimeStr = "0:00"
-            ElseIf newHours < 0 Then
-                newTimeStr = $"-{newH}:{newM:D2}"
-            Else
-                newTimeStr = $"{newH}:{newM:D2}"
-            End If
-
-            ' Добавляем комментарий со старым и новым временем, датой и адресом
-            Dim sourceInfo As String = If(String.IsNullOrEmpty(sourceOvertimeCell), cellAddress, sourceOvertimeCell)
-            Dim commentText As String = $"=== ИСХОДНЫЕ ДАННЫЕ ===" & vbCrLf &
-                                       $"Дата: {dateStr}" & vbCrLf &
-                                       $"Ячейка переработки: {sourceInfo}" & vbCrLf &
-                                       $"" & vbCrLf &
-                                       $"Что в ячейке Excel:" & vbCrLf &
-                                       $"  cell.Text = '{sourceOvertimeText}'" & vbCrLf &
-                                       $"  cell.Value2 = '{sourceOvertimeValue2}'" & vbCrLf &
-                                       $"  cell.NumberFormat = '{sourceOvertimeFormat}'" & vbCrLf &
-                                       $"" & vbCrLf &
-                                       $"Распарсено как: {oldTimeStr} ({oldHours:F4} часа)" & vbCrLf &
-                                       vbCrLf &
-                                       $"=== ОБРАБОТКА ===" & vbCrLf
-
-            If lunchMinutes > 0 Then
-                commentText &= $"Добавлено времени обеда: {lunchMinutes} мин" & vbCrLf &
-                              $"Новое значение: {newTimeStr} ({newHours:F4} часа)" & vbCrLf &
-                              $"" & vbCrLf &
-                              $"Расчет: {oldTimeStr} + {lunchMinutes} мин = {newTimeStr}"
-            Else
-                commentText &= $"Время обеда не добавлено" & vbCrLf &
-                              $"Новое значение: {newTimeStr} (без изменений)"
-            End If
-
+            
+            ' Добавляем новый комментарий
             Dim comment As Excel.Comment = cell.AddComment(commentText)
-            ' Автоматический размер комментария
             If comment IsNot Nothing AndAlso comment.Shape IsNot Nothing Then
                 comment.Shape.TextFrame.AutoSize = True
             End If
-        Catch ex As Exception
+        Catch
             ' Игнорируем ошибки при работе с комментариями
         End Try
     End Sub
