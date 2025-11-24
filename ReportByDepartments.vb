@@ -391,7 +391,7 @@ Public Module ReportByDepartments
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Delete()
                         End If
-                        headerCell.AddComment("Время, которое сотрудник находился вне здания в необеденное время")
+                        headerCell.AddComment("Время, которое сотрудник находился вне здания, исключая обеденное время")
 
                         ' Настраиваем размер комментария
                         If headerCell.Comment IsNot Nothing Then
@@ -415,7 +415,7 @@ Public Module ReportByDepartments
                         If headerCell.Comment IsNot Nothing Then
                             headerCell.Comment.Delete()
                         End If
-                        headerCell.AddComment("Время, которое сотрудник находился в здании, исключая обеденное время")
+                        headerCell.AddComment("Время, которое сотрудник находился в здании, исключая обеденное время + переработка")
 
                         ' Настраиваем размер комментария
                         If headerCell.Comment IsNot Nothing Then
@@ -616,7 +616,207 @@ Public Module ReportByDepartments
             Marshal.FinalReleaseComObject(overtimeCell)
         Next
 
-        ' ЭТАП 3: Окрашивание и анализ времени
+        ' ЭТАП 3: Корректировка "Находился в здании" с учетом обеда
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+        
+        For r As Integer = 2 To lastRow
+            ' Пропускаем строки ИТОГО
+            Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
+            If StringEquals(markerVal, "ИТОГО") Then Continue For
+
+            ' Проверяем, выходной ли день
+            Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
+            Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+
+            ' Проверяем, есть ли причина отсутствия
+            Dim hasAbsenceReason As Boolean = False
+            Dim lastCol As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing AndAlso CStr(headerValue).Trim().Contains("Причина отсутствия") Then
+                    Dim reasonValue As Object = GetCellValue(ws, r, col)
+                    If reasonValue IsNot Nothing AndAlso Not String.IsNullOrEmpty(CStr(reasonValue).Trim()) Then
+                        hasAbsenceReason = True
+                    End If
+                    Exit For
+                End If
+            Next
+
+            ' Для выходных и дней с причиной отсутствия не корректируем
+            If isWeekendDay OrElse hasAbsenceReason Then
+                Continue For
+            End If
+
+            ' Получаем максимальное время обеда из графика работы
+            Dim workSchedule As String = GetWorkScheduleForEmployee(ws, r)
+            Dim maxLunchMinutes As Integer = ExtractLunchMinutesFromSchedule(workSchedule)
+
+            ' Находим колонку "Прогулял" и читаем время
+            Dim progulalHours As Double = 0
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing Then
+                    Dim headerText As String = CStr(headerValue).Trim()
+                    If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
+                        Dim progulalCell As Excel.Range = CType(ws.Cells(r, col), Excel.Range)
+                        progulalHours = ParseOvertimeHours(progulalCell)
+                        Marshal.FinalReleaseComObject(progulalCell)
+                        Exit For
+                    End If
+                End If
+            Next
+
+            ' Читаем текущее значение "Находился в здании"
+            Dim timeCell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
+            Dim currentTimeHours As Double = ParseOvertimeHours(timeCell)
+
+            ' 1. Если прогулял < обеда, вычитаем разницу
+            Dim progulalMinutes As Integer = CInt(progulalHours * 60)
+            If progulalMinutes < maxLunchMinutes Then
+                Dim differenceMinutes As Integer = maxLunchMinutes - progulalMinutes
+                Dim differenceHours As Double = differenceMinutes / 60.0
+                currentTimeHours = currentTimeHours - differenceHours
+            End If
+
+            ' 2. Добавляем утреннюю и вечернюю переработку
+            Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
+            Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
+            Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+            Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
+
+            ' Проверяем, что есть фактическое время прихода и ухода
+            If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
+               Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
+
+                ' Извлекаем время начала и конца из графика
+                Dim scheduleStartTime As TimeSpan? = ExtractStartTimeFromSchedule(workSchedule)
+                
+                ' Проверяем, пятница ли это
+                Dim isFriday As Boolean = False
+                If TypeOf dateVal Is Date Then
+                    isFriday = (CDate(dateVal).DayOfWeek = DayOfWeek.Friday)
+                ElseIf TypeOf dateVal Is Double Then
+                    isFriday = (Date.FromOADate(CDbl(dateVal)).DayOfWeek = DayOfWeek.Friday)
+                End If
+                
+                Dim scheduleEndTime As TimeSpan? = ExtractEndTimeFromSchedule(workSchedule, isFriday)
+
+                ' Парсим фактическое время прихода и ухода
+                Dim actualStartTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
+                Dim actualEndTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
+
+                If scheduleStartTime.HasValue AndAlso actualStartTime.HasValue Then
+                    ' Утренняя переработка: если пришел РАНЬШЕ → добавляем разницу
+                    If actualStartTime.Value < scheduleStartTime.Value Then
+                        Dim morningOvertime As TimeSpan = scheduleStartTime.Value - actualStartTime.Value
+                        currentTimeHours += morningOvertime.TotalHours
+                    End If
+                End If
+
+                If scheduleEndTime.HasValue AndAlso actualEndTime.HasValue Then
+                    ' Вечерняя переработка: если ушел ПОЗЖЕ → добавляем разницу
+                    If actualEndTime.Value > scheduleEndTime.Value Then
+                        Dim eveningOvertime As TimeSpan = actualEndTime.Value - scheduleEndTime.Value
+                        currentTimeHours += eveningOvertime.TotalHours
+                    End If
+                End If
+            End If
+
+            ' Если получилось отрицательное значение, устанавливаем 0
+            If currentTimeHours < 0 Then
+                currentTimeHours = 0
+            End If
+
+            ' Записываем новое значение в формате Ч:ММ
+            Dim totalMinutes As Integer = CInt(currentTimeHours * 60)
+            Dim resultHours As Integer = totalMinutes \ 60
+            Dim resultMinutes As Integer = totalMinutes Mod 60
+
+            Dim timeString As String = $"{resultHours}:{resultMinutes:D2}"
+
+            timeCell.NumberFormat = "@"
+            timeCell.Value = timeString
+            timeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+
+            Marshal.FinalReleaseComObject(timeCell)
+        Next
+
+        ' ЭТАП 3.5: Пересчет "Находился вне здания" с вычетом обеда
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
+        
+        For r As Integer = 2 To lastRow
+            ' Пропускаем строки ИТОГО
+            Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
+            If StringEquals(markerVal, "ИТОГО") Then Continue For
+
+            ' Проверяем, выходной ли день
+            Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
+            Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+
+            ' Проверяем, есть ли причина отсутствия
+            Dim hasAbsenceReason As Boolean = False
+            Dim lastCol As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing AndAlso CStr(headerValue).Trim().Contains("Причина отсутствия") Then
+                    Dim reasonValue As Object = GetCellValue(ws, r, col)
+                    If reasonValue IsNot Nothing AndAlso Not String.IsNullOrEmpty(CStr(reasonValue).Trim()) Then
+                        hasAbsenceReason = True
+                    End If
+                    Exit For
+                End If
+            Next
+
+            ' Находим колонку "Прогулял" / "Находился вне здания"
+            For col As Integer = 1 To lastCol
+                Dim headerValue As Object = GetCellValue(ws, 1, col)
+                If headerValue IsNot Nothing Then
+                    Dim headerText As String = CStr(headerValue).Trim()
+                    If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
+                        Dim progulalCell As Excel.Range = CType(ws.Cells(r, col), Excel.Range)
+                        
+                        ' Для выходных и дней с причиной отсутствия устанавливаем 0
+                        If isWeekendDay OrElse hasAbsenceReason Then
+                            progulalCell.NumberFormat = "@"
+                            progulalCell.Value = "0:00"
+                            progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                            Marshal.FinalReleaseComObject(progulalCell)
+                            Exit For
+                        End If
+                        
+                        ' Получаем максимальное время обеда из графика работы
+                        Dim workSchedule As String = GetWorkScheduleForEmployee(ws, r)
+                        Dim maxLunchMinutes As Integer = ExtractLunchMinutesFromSchedule(workSchedule)
+                        
+                        Dim progulalHours As Double = ParseOvertimeHours(progulalCell)
+                        
+                        ' Вычитаем обед
+                        Dim progulalMinutes As Integer = CInt(progulalHours * 60)
+                        Dim newProgulalMinutes As Integer = progulalMinutes - maxLunchMinutes
+                        
+                        ' Если меньше 0, то ставим 0
+                        If newProgulalMinutes < 0 Then
+                            newProgulalMinutes = 0
+                        End If
+                        
+                        ' Записываем новое значение в формате Ч:ММ
+                        Dim resultHours As Integer = newProgulalMinutes \ 60
+                        Dim resultMinutes As Integer = newProgulalMinutes Mod 60
+                        
+                        Dim timeString As String = $"{resultHours}:{resultMinutes:D2}"
+                        
+                        progulalCell.NumberFormat = "@"
+                        progulalCell.Value = timeString
+                        progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                        
+                        Marshal.FinalReleaseComObject(progulalCell)
+                        Exit For
+                    End If
+                End If
+            Next
+        Next
+
+        ' ЭТАП 4: Окрашивание и анализ времени
         lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
 
         For r As Integer = lastRow To 2 Step -1
@@ -737,7 +937,7 @@ Public Module ReportByDepartments
         ' Нормализуем значения переработки перед суммированием ИТОГО
         NormalizeSummaryOvertimeValues(ws)
 
-        ' ЭТАП 4: Суммирование для строк ИТОГО
+        ' ЭТАП 5: Суммирование для строк ИТОГО
         For r As Integer = lastRow To 2 Step -1
 
             ' --- Обработка "Фактическая переработка" ТОЛЬКО для строки ИТОГО (14-й столбец) ---
@@ -861,6 +1061,98 @@ Public Module ReportByDepartments
                 End If
 
                 Marshal.FinalReleaseComObject(ocell)
+
+                ' --- Пересчет "Находился в здании" для строки ИТОГО (7-й столбец) ---
+                Dim timeCell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
+                
+                ' Считаем сумму "Находился в здании" программно
+                Dim totalTimeHours As Double = 0
+                
+                For row As Integer = formulaStartRow To r - 1
+                    Dim timeCellRow As Excel.Range = Nothing
+                    Try
+                        timeCellRow = CType(ws.Cells(row, COL_TIME), Excel.Range)
+                        Dim timeHours As Double = ParseOvertimeHours(timeCellRow)
+                        totalTimeHours += timeHours
+                    Finally
+                        If timeCellRow IsNot Nothing Then Marshal.FinalReleaseComObject(timeCellRow)
+                    End Try
+                Next
+                
+                ' Форматируем и записываем сумму
+                Dim totalTimeMinutes As Integer = CInt(Math.Abs(totalTimeHours) * 60)
+                Dim timeResultHours As Integer = totalTimeMinutes \ 60
+                Dim timeResultMinutes As Integer = totalTimeMinutes Mod 60
+                
+                Dim timeString As String
+                If totalTimeMinutes = 0 Then
+                    timeString = "0:00"
+                ElseIf totalTimeHours < 0 Then
+                    timeString = $"-{timeResultHours}:{timeResultMinutes:D2}"
+                Else
+                    timeString = $"{timeResultHours}:{timeResultMinutes:D2}"
+                End If
+                
+                timeCell.NumberFormat = "@"
+                timeCell.Value = timeString
+                timeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                
+                Marshal.FinalReleaseComObject(timeCell)
+
+                ' --- Пересчет "Находился вне здания" для строки ИТОГО ---
+                Dim progulalCol As Integer = 0
+                Dim lastColSearch As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
+                
+                ' Находим колонку "Прогулял" / "Находился вне здания"
+                For col As Integer = 1 To lastColSearch
+                    Dim headerValue As Object = GetCellValue(ws, 1, col)
+                    If headerValue IsNot Nothing Then
+                        Dim headerText As String = CStr(headerValue).Trim()
+                        If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
+                            progulalCol = col
+                            Exit For
+                        End If
+                    End If
+                Next
+                
+                ' Если нашли колонку, пересчитываем сумму
+                If progulalCol > 0 Then
+                    Dim progulalCell As Excel.Range = CType(ws.Cells(r, progulalCol), Excel.Range)
+                    
+                    ' Считаем сумму "Находился вне здания" программно
+                    Dim totalProgulalHours As Double = 0
+                    
+                    For row As Integer = formulaStartRow To r - 1
+                        Dim progulalCellRow As Excel.Range = Nothing
+                        Try
+                            progulalCellRow = CType(ws.Cells(row, progulalCol), Excel.Range)
+                            Dim progulalHours As Double = ParseOvertimeHours(progulalCellRow)
+                            totalProgulalHours += progulalHours
+                        Finally
+                            If progulalCellRow IsNot Nothing Then Marshal.FinalReleaseComObject(progulalCellRow)
+                        End Try
+                    Next
+                    
+                    ' Форматируем и записываем сумму
+                    Dim totalProgulalMinutes As Integer = CInt(Math.Abs(totalProgulalHours) * 60)
+                    Dim progulalResultHours As Integer = totalProgulalMinutes \ 60
+                    Dim progulalResultMinutes As Integer = totalProgulalMinutes Mod 60
+                    
+                    Dim progulalTimeString As String
+                    If totalProgulalMinutes = 0 Then
+                        progulalTimeString = "0:00"
+                    ElseIf totalProgulalHours < 0 Then
+                        progulalTimeString = $"-{progulalResultHours}:{progulalResultMinutes:D2}"
+                    Else
+                        progulalTimeString = $"{progulalResultHours}:{progulalResultMinutes:D2}"
+                    End If
+                    
+                    progulalCell.NumberFormat = "@"
+                    progulalCell.Value = progulalTimeString
+                    progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                    
+                    Marshal.FinalReleaseComObject(progulalCell)
+                End If
             End If
         Next
         ' === Границы: применяем один раз для всего заполненного диапазона ===
