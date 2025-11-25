@@ -767,6 +767,17 @@ Public Module ReportByDepartments
                 End If
             Next
 
+            ' Проверяем наличие входа и выхода
+            Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
+            Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
+            Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+            Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
+            
+            Dim hasNoEntryOrExit As Boolean = String.IsNullOrEmpty(startTimeStr) OrElse 
+                                              String.IsNullOrEmpty(endTimeStr) OrElse
+                                              startTimeStr.Contains("Нет входа") OrElse 
+                                              endTimeStr.Contains("Нет выход")
+
             ' Находим колонку "Прогулял" / "Находился вне здания"
             For col As Integer = 1 To lastCol
                 Dim headerValue As Object = GetCellValue(ws, 1, col)
@@ -775,8 +786,8 @@ Public Module ReportByDepartments
                     If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
                         Dim progulalCell As Excel.Range = CType(ws.Cells(r, col), Excel.Range)
                         
-                        ' Для выходных и дней с причиной отсутствия устанавливаем 0
-                        If isWeekendDay OrElse hasAbsenceReason Then
+                        ' Для выходных, дней с причиной отсутствия и дней без входа/выхода устанавливаем 0
+                        If isWeekendDay OrElse hasAbsenceReason OrElse hasNoEntryOrExit Then
                             progulalCell.NumberFormat = "@"
                             progulalCell.Value = "0:00"
                             progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
