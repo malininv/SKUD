@@ -627,6 +627,7 @@ Public Module ReportByDepartments
             ' Проверяем, выходной ли день
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+            Dim isWorkingWeekendDay As Boolean = IsWorkingWeekend(dateVal)
 
             ' Проверяем, есть ли причина отсутствия
             Dim hasAbsenceReason As Boolean = False
@@ -642,8 +643,9 @@ Public Module ReportByDepartments
                 End If
             Next
 
-            ' Для выходных и дней с причиной отсутствия не корректируем
-            If isWeekendDay OrElse hasAbsenceReason Then
+            ' Для выходных (кроме рабочих выходных) и дней с причиной отсутствия не корректируем
+            ' Рабочие выходные обрабатываются отдельно в блоке обработки выходных дней
+            If (isWeekendDay AndAlso Not isWorkingWeekendDay) OrElse hasAbsenceReason Then
                 Continue For
             End If
 
@@ -690,7 +692,7 @@ Public Module ReportByDepartments
 
                 ' Извлекаем время начала и конца из графика
                 Dim scheduleStartTime As TimeSpan? = ExtractStartTimeFromSchedule(workSchedule)
-                
+
                 ' Проверяем, пятница ли это
                 Dim isFriday As Boolean = False
                 If TypeOf dateVal Is Date Then
@@ -698,7 +700,7 @@ Public Module ReportByDepartments
                 ElseIf TypeOf dateVal Is Double Then
                     isFriday = (Date.FromOADate(CDbl(dateVal)).DayOfWeek = DayOfWeek.Friday)
                 End If
-                
+
                 Dim scheduleEndTime As TimeSpan? = ExtractEndTimeFromSchedule(workSchedule, isFriday)
 
                 ' Парсим фактическое время прихода и ухода
@@ -743,7 +745,7 @@ Public Module ReportByDepartments
 
         ' ЭТАП 3.5: Пересчет "Находился вне здания" с вычетом обеда
         lastRow = ws.Cells(ws.Rows.Count, 1).End(Excel.XlDirection.xlUp).Row
-        
+
         For r As Integer = 2 To lastRow
             ' Пропускаем строки ИТОГО
             Dim markerVal As Object = GetCellValue(ws, r, COL_MARKER)
@@ -752,6 +754,7 @@ Public Module ReportByDepartments
             ' Проверяем, выходной ли день
             Dim dateVal As Object = GetCellValue(ws, r, COL_DATE)
             Dim isWeekendDay As Boolean = IsWeekend(dateVal)
+            Dim isWorkingWeekendDay As Boolean = IsWorkingWeekend(dateVal)
 
             ' Проверяем, есть ли причина отсутствия
             Dim hasAbsenceReason As Boolean = False
@@ -772,10 +775,10 @@ Public Module ReportByDepartments
             Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
             Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
             Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
-            
-            Dim hasNoEntryOrExit As Boolean = String.IsNullOrEmpty(startTimeStr) OrElse 
+
+            Dim hasNoEntryOrExit As Boolean = String.IsNullOrEmpty(startTimeStr) OrElse
                                               String.IsNullOrEmpty(endTimeStr) OrElse
-                                              startTimeStr.Contains("Нет входа") OrElse 
+                                              startTimeStr.Contains("Нет входа") OrElse
                                               endTimeStr.Contains("Нет выход")
 
             ' Находим колонку "Прогулял" / "Находился вне здания"
@@ -785,41 +788,41 @@ Public Module ReportByDepartments
                     Dim headerText As String = CStr(headerValue).Trim()
                     If headerText.Contains("Находился вне здания") OrElse headerText.Contains("Прогулял") Then
                         Dim progulalCell As Excel.Range = CType(ws.Cells(r, col), Excel.Range)
-                        
-                        ' Для выходных, дней с причиной отсутствия и дней без входа/выхода устанавливаем 0
-                        If isWeekendDay OrElse hasAbsenceReason OrElse hasNoEntryOrExit Then
+
+                        ' Для выходных (кроме рабочих выходных), дней с причиной отсутствия и дней без входа/выхода устанавливаем 0
+                        If (isWeekendDay AndAlso Not isWorkingWeekendDay) OrElse hasAbsenceReason OrElse hasNoEntryOrExit Then
                             progulalCell.NumberFormat = "@"
                             progulalCell.Value = "0:00"
                             progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
                             Marshal.FinalReleaseComObject(progulalCell)
                             Exit For
                         End If
-                        
+
                         ' Получаем максимальное время обеда из графика работы
                         Dim workSchedule As String = GetWorkScheduleForEmployee(ws, r)
                         Dim maxLunchMinutes As Integer = ExtractLunchMinutesFromSchedule(workSchedule)
-                        
+
                         Dim progulalHours As Double = ParseOvertimeHours(progulalCell)
-                        
+
                         ' Вычитаем обед
                         Dim progulalMinutes As Integer = CInt(progulalHours * 60)
                         Dim newProgulalMinutes As Integer = progulalMinutes - maxLunchMinutes
-                        
+
                         ' Если меньше 0, то ставим 0
                         If newProgulalMinutes < 0 Then
                             newProgulalMinutes = 0
                         End If
-                        
+
                         ' Записываем новое значение в формате Ч:ММ
                         Dim resultHours As Integer = newProgulalMinutes \ 60
                         Dim resultMinutes As Integer = newProgulalMinutes Mod 60
-                        
+
                         Dim timeString As String = $"{resultHours}:{resultMinutes:D2}"
-                        
+
                         progulalCell.NumberFormat = "@"
                         progulalCell.Value = timeString
                         progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-                        
+
                         Marshal.FinalReleaseComObject(progulalCell)
                         Exit For
                     End If
@@ -869,58 +872,80 @@ Public Module ReportByDepartments
 
             ' ==================== ЕСЛИ ВЫХОДНОЙ ИЛИ ЕСТЬ ПРИЧИНА ОТСУТСТВИЯ ====================
             If isWeekendDay OrElse hasAbsenceReason Then
-                ' Для выходных и дней с причиной отсутствия: переработка = конец дня - начало дня (БЕЗ обеда)
+                ' Проверяем, является ли это рабочим выходным
+                Dim isWorkingWeekendDay As Boolean = IsWorkingWeekend(dateVal)
+
                 Dim startTimeVal As Object = GetCellValue(ws, r, COL_START_TIME)
                 Dim endTimeVal As Object = GetCellValue(ws, r, COL_END_TIME)
                 Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
                 Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
 
-                If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
-                   Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
+                If isWorkingWeekendDay Then
+                    ' Для рабочих выходных:
+                    ' - В "Фактическая переработка" ставим 0
+                    ' - В "Находился в здании" ставим разницу между концом и началом дня
+                    Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                    overtimeCell.NumberFormat = "@"
+                    overtimeCell.Value = "0:00"
+                    overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                    Marshal.FinalReleaseComObject(overtimeCell)
 
-                    Dim startTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
-                    Dim endTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
+                    ' Записываем разницу в "Находился в здании"
+                    Dim timeDifference As String = CalculateTimeDifference(startTimeVal, endTimeVal)
+                    Dim timeCell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
+                    timeCell.NumberFormat = "@"
+                    timeCell.Value = timeDifference
+                    timeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+                    Marshal.FinalReleaseComObject(timeCell)
+                Else
+                    ' Для обычных выходных и дней с причиной отсутствия: переработка = конец дня - начало дня (БЕЗ обеда)
+                    If Not String.IsNullOrEmpty(startTimeStr) AndAlso Not startTimeStr.Contains("Нет входа") AndAlso
+                       Not String.IsNullOrEmpty(endTimeStr) AndAlso Not endTimeStr.Contains("Нет выход") Then
 
-                    If startTime.HasValue AndAlso endTime.HasValue Then
-                        Dim workHours As Double = (endTime.Value - startTime.Value).TotalHours
+                        Dim startTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
+                        Dim endTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
 
-                        ' Записываем в фактическую переработку в формате Ч:ММ
-                        Dim totalMinutes As Integer = CInt(Math.Abs(workHours) * 60)
-                        Dim resultHours As Integer = totalMinutes \ 60
-                        Dim resultMinutes As Integer = totalMinutes Mod 60
+                        If startTime.HasValue AndAlso endTime.HasValue Then
+                            Dim workHours As Double = (endTime.Value - startTime.Value).TotalHours
 
-                        Dim timeString As String
-                        If workHours < 0 Then
-                            timeString = $"-{resultHours}:{resultMinutes:D2}"
-                        Else
-                            timeString = $"{resultHours}:{resultMinutes:D2}"
+                            ' Записываем в фактическую переработку в формате Ч:ММ
+                            Dim totalMinutes As Integer = CInt(Math.Abs(workHours) * 60)
+                            Dim resultHours As Integer = totalMinutes \ 60
+                            Dim resultMinutes As Integer = totalMinutes Mod 60
+
+                            Dim timeString As String
+                            If workHours < 0 Then
+                                timeString = $"-{resultHours}:{resultMinutes:D2}"
+                            Else
+                                timeString = $"{resultHours}:{resultMinutes:D2}"
+                            End If
+
+                            Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
+                            overtimeCell.NumberFormat = "@"
+                            overtimeCell.Value = timeString
+                            overtimeCell.HorizontalAlignment = If(workHours >= 0, Excel.XlHAlign.xlHAlignRight, Excel.XlHAlign.xlHAlignLeft)
+
+                            ' Добавляем комментарий для выходного/причины отсутствия
+                            Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
+                            Dim commentText As String = GetSimpleComment(dateCell.Value2, isWeekendDay, hasAbsenceReason)
+                            AddSimpleComment(overtimeCell, commentText)
+                            Marshal.FinalReleaseComObject(dateCell)
+                            Marshal.FinalReleaseComObject(overtimeCell)
                         End If
-
+                    Else
+                        ' Если нет отработанного времени, ставим 0:00
                         Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
                         overtimeCell.NumberFormat = "@"
-                        overtimeCell.Value = timeString
-                        overtimeCell.HorizontalAlignment = If(workHours >= 0, Excel.XlHAlign.xlHAlignRight, Excel.XlHAlign.xlHAlignLeft)
-                        
-                        ' Добавляем комментарий для выходного/причины отсутствия
+                        overtimeCell.Value = "0:00"
+                        overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
+
+                        ' Добавляем комментарий для выходного/причины отсутствия без отработанного времени
                         Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
                         Dim commentText As String = GetSimpleComment(dateCell.Value2, isWeekendDay, hasAbsenceReason)
                         AddSimpleComment(overtimeCell, commentText)
                         Marshal.FinalReleaseComObject(dateCell)
                         Marshal.FinalReleaseComObject(overtimeCell)
                     End If
-                Else
-                    ' Если нет отработанного времени, ставим 0:00
-                    Dim overtimeCell As Excel.Range = CType(ws.Cells(r, COL_OVERTIME), Excel.Range)
-                    overtimeCell.NumberFormat = "@"
-                    overtimeCell.Value = "0:00"
-                    overtimeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-                    
-                    ' Добавляем комментарий для выходного/причины отсутствия без отработанного времени
-                    Dim dateCell As Excel.Range = CType(ws.Cells(r, COL_DATE), Excel.Range)
-                    Dim commentText As String = GetSimpleComment(dateCell.Value2, isWeekendDay, hasAbsenceReason)
-                    AddSimpleComment(overtimeCell, commentText)
-                    Marshal.FinalReleaseComObject(dateCell)
-                    Marshal.FinalReleaseComObject(overtimeCell)
                 End If
             Else
                 ' ==================== ОБЫЧНЫЙ РАБОЧИЙ ДЕНЬ БЕЗ ПРИЧИНЫ ОТСУТСТВИЯ ====================
@@ -1075,10 +1100,10 @@ Public Module ReportByDepartments
 
                 ' --- Пересчет "Находился в здании" для строки ИТОГО (7-й столбец) ---
                 Dim timeCell As Excel.Range = CType(ws.Cells(r, COL_TIME), Excel.Range)
-                
+
                 ' Считаем сумму "Находился в здании" программно
                 Dim totalTimeHours As Double = 0
-                
+
                 For row As Integer = formulaStartRow To r - 1
                     Dim timeCellRow As Excel.Range = Nothing
                     Try
@@ -1089,12 +1114,12 @@ Public Module ReportByDepartments
                         If timeCellRow IsNot Nothing Then Marshal.FinalReleaseComObject(timeCellRow)
                     End Try
                 Next
-                
+
                 ' Форматируем и записываем сумму
                 Dim totalTimeMinutes As Integer = CInt(Math.Abs(totalTimeHours) * 60)
                 Dim timeResultHours As Integer = totalTimeMinutes \ 60
                 Dim timeResultMinutes As Integer = totalTimeMinutes Mod 60
-                
+
                 Dim timeString As String
                 If totalTimeMinutes = 0 Then
                     timeString = "0:00"
@@ -1103,17 +1128,17 @@ Public Module ReportByDepartments
                 Else
                     timeString = $"{timeResultHours}:{timeResultMinutes:D2}"
                 End If
-                
+
                 timeCell.NumberFormat = "@"
                 timeCell.Value = timeString
                 timeCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-                
+
                 Marshal.FinalReleaseComObject(timeCell)
 
                 ' --- Пересчет "Находился вне здания" для строки ИТОГО ---
                 Dim progulalCol As Integer = 0
                 Dim lastColSearch As Integer = ws.Cells(r, ws.Columns.Count).End(Excel.XlDirection.xlToLeft).Column
-                
+
                 ' Находим колонку "Прогулял" / "Находился вне здания"
                 For col As Integer = 1 To lastColSearch
                     Dim headerValue As Object = GetCellValue(ws, 1, col)
@@ -1125,14 +1150,14 @@ Public Module ReportByDepartments
                         End If
                     End If
                 Next
-                
+
                 ' Если нашли колонку, пересчитываем сумму
                 If progulalCol > 0 Then
                     Dim progulalCell As Excel.Range = CType(ws.Cells(r, progulalCol), Excel.Range)
-                    
+
                     ' Считаем сумму "Находился вне здания" программно
                     Dim totalProgulalHours As Double = 0
-                    
+
                     For row As Integer = formulaStartRow To r - 1
                         Dim progulalCellRow As Excel.Range = Nothing
                         Try
@@ -1143,12 +1168,12 @@ Public Module ReportByDepartments
                             If progulalCellRow IsNot Nothing Then Marshal.FinalReleaseComObject(progulalCellRow)
                         End Try
                     Next
-                    
+
                     ' Форматируем и записываем сумму
                     Dim totalProgulalMinutes As Integer = CInt(Math.Abs(totalProgulalHours) * 60)
                     Dim progulalResultHours As Integer = totalProgulalMinutes \ 60
                     Dim progulalResultMinutes As Integer = totalProgulalMinutes Mod 60
-                    
+
                     Dim progulalTimeString As String
                     If totalProgulalMinutes = 0 Then
                         progulalTimeString = "0:00"
@@ -1157,11 +1182,11 @@ Public Module ReportByDepartments
                     Else
                         progulalTimeString = $"{progulalResultHours}:{progulalResultMinutes:D2}"
                     End If
-                    
+
                     progulalCell.NumberFormat = "@"
                     progulalCell.Value = progulalTimeString
                     progulalCell.HorizontalAlignment = Excel.XlHAlign.xlHAlignRight
-                    
+
                     Marshal.FinalReleaseComObject(progulalCell)
                 End If
             End If
@@ -1597,6 +1622,62 @@ Public Module ReportByDepartments
         End If
         Dim mondayBased As Integer = ((CInt(dt.DayOfWeek) + 6) Mod 7) + 1 ' 1=Mon .. 7=Sun
         Return (mondayBased = 6 OrElse mondayBased = 7)
+    End Function
+
+    ' Проверяет, является ли дата рабочим выходным (выходной день, но рабочий)
+    Private Function IsWorkingWeekend(v As Object) As Boolean
+        If v Is Nothing Then Return False
+        Dim dt As Date
+        If TypeOf v Is Double Then
+            dt = Date.FromOADate(CDbl(v))
+        ElseIf Not Date.TryParse(CStr(v), dt) Then
+            Return False
+        End If
+
+        ' Список дат рабочих выходных (можно расширить)
+        ' Формат: только дата (без времени), сравниваем по дате
+        Dim workingWeekends As New List(Of Date)
+        workingWeekends.Add(New Date(2025, 11, 1))
+        ' Пример: workingWeekends.Add(New Date(2024, 1, 6)) ' 6 января 2024 - рабочий выходной
+        ' Добавьте здесь конкретные даты рабочих выходных
+
+        ' Если дата в списке рабочих выходных, возвращаем True
+        For Each workingDate As Date In workingWeekends
+            If workingDate.Date = dt.Date Then
+                Return True
+            End If
+        Next
+
+        Return False
+    End Function
+
+    ' Вычисляет разницу между концом и началом дня и возвращает строку в формате Ч:ММ
+    Private Function CalculateTimeDifference(startTimeVal As Object, endTimeVal As Object) As String
+        Dim startTimeStr As String = If(startTimeVal Is Nothing, "", CStr(startTimeVal).Trim())
+        Dim endTimeStr As String = If(endTimeVal Is Nothing, "", CStr(endTimeVal).Trim())
+
+        If String.IsNullOrEmpty(startTimeStr) OrElse startTimeStr.Contains("Нет входа") OrElse
+           String.IsNullOrEmpty(endTimeStr) OrElse endTimeStr.Contains("Нет выход") Then
+            Return "0:00"
+        End If
+
+        Dim startTime As TimeSpan? = ParseTimeFromCellValue(startTimeVal)
+        Dim endTime As TimeSpan? = ParseTimeFromCellValue(endTimeVal)
+
+        If Not startTime.HasValue OrElse Not endTime.HasValue Then
+            Return "0:00"
+        End If
+
+        Dim workHours As Double = (endTime.Value - startTime.Value).TotalHours
+        Dim totalMinutes As Integer = CInt(Math.Abs(workHours) * 60)
+        Dim resultHours As Integer = totalMinutes \ 60
+        Dim resultMinutes As Integer = totalMinutes Mod 60
+
+        If workHours < 0 Then
+            Return $"-{resultHours}:{resultMinutes:D2}"
+        Else
+            Return $"{resultHours}:{resultMinutes:D2}"
+        End If
     End Function
 
     Private Function LimitSheetName(proposed As String) As String
