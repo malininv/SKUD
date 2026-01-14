@@ -1,4 +1,4 @@
-﻿Partial Class Ribbon1
+Partial Class Ribbon1
     Inherits Microsoft.Office.Tools.Ribbon.RibbonBase
 
     <System.Diagnostics.DebuggerNonUserCode()>
@@ -53,6 +53,8 @@
         Me.btnApplyWorkSchedules = Me.Factory.CreateRibbonButton
         Me.Group4 = Me.Factory.CreateRibbonGroup
         Me.btnShowInstructions = Me.Factory.CreateRibbonButton
+        Me.btnShowExportReport = Me.Factory.CreateRibbonButton
+        Me.btnShowExportInstructions = Me.Factory.CreateRibbonButton
         Me.Tab1.SuspendLayout()
         Me.Group1.SuspendLayout()
         Me.Group2.SuspendLayout()
@@ -125,7 +127,7 @@
         'btnApplyVacations
         '
         Me.btnApplyVacations.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
-        Me.btnApplyVacations.Label = "Проставить отпуска"
+        Me.btnApplyVacations.Label = "1. Проставить отпуска"
         Me.btnApplyVacations.Name = "btnApplyVacations"
         Me.btnApplyVacations.OfficeImageId = "ColumnsDialog"
         Me.btnApplyVacations.ShowImage = True
@@ -133,7 +135,7 @@
         'btnApplyWorkSchedules
         '
         Me.btnApplyWorkSchedules.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
-        Me.btnApplyWorkSchedules.Label = "Графики работы"
+        Me.btnApplyWorkSchedules.Label = "2. Графики работы"
         Me.btnApplyWorkSchedules.Name = "btnApplyWorkSchedules"
         Me.btnApplyWorkSchedules.OfficeImageId = "ColumnsDialog"
         Me.btnApplyWorkSchedules.ShowImage = True
@@ -141,16 +143,34 @@
         'Group4
         '
         Me.Group4.Items.Add(Me.btnShowInstructions)
+        Me.Group4.Items.Add(Me.btnShowExportReport)
+        Me.Group4.Items.Add(Me.btnShowExportInstructions)
         Me.Group4.Label = "Справка"
         Me.Group4.Name = "Group4"
         '
         'btnShowInstructions
         '
         Me.btnShowInstructions.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
-        Me.btnShowInstructions.Label = "Инструкция"
+        Me.btnShowInstructions.Label = "Инструкция пользователя"
         Me.btnShowInstructions.Name = "btnShowInstructions"
         Me.btnShowInstructions.OfficeImageId = "Help"
         Me.btnShowInstructions.ShowImage = True
+        '
+        'btnShowExportReport
+        '
+        Me.btnShowExportReport.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnShowExportReport.Label = "Выгрузка отчета из СКУД"
+        Me.btnShowExportReport.Name = "btnShowExportReport"
+        Me.btnShowExportReport.OfficeImageId = "FileOpen"
+        Me.btnShowExportReport.ShowImage = True
+        '
+        'btnShowExportInstructions
+        '
+        Me.btnShowExportInstructions.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge
+        Me.btnShowExportInstructions.Label = "Выгрузка отпусков и графиков работы"
+        Me.btnShowExportInstructions.Name = "btnShowExportInstructions"
+        Me.btnShowExportInstructions.OfficeImageId = "ExportExcel"
+        Me.btnShowExportInstructions.ShowImage = True
         '
         'Ribbon1
         '
@@ -183,11 +203,13 @@
     Friend WithEvents Group3 As Microsoft.Office.Tools.Ribbon.RibbonGroup
     Friend WithEvents Group4 As Microsoft.Office.Tools.Ribbon.RibbonGroup
     Friend WithEvents btnShowInstructions As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnShowExportReport As Microsoft.Office.Tools.Ribbon.RibbonButton
+    Friend WithEvents btnShowExportInstructions As Microsoft.Office.Tools.Ribbon.RibbonButton
 End Class
 
 Partial Class ThisRibbonCollection
 
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Friend ReadOnly Property Ribbon1() As Ribbon1
         Get
             Return Me.GetRibbon(Of Ribbon1)()

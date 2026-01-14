@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выгрузка отпусков и графиков работы</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        h3 { color: #7f8c8d; }
+        .step { background-color: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .warning { background-color: #fff3cd; padding: 15px; margin: 10px 0; border-left: 4px solid #ffc107; }
+        .success { background-color: #d4edda; padding: 15px; margin: 10px 0; border-left: 4px solid #28a745; }
+        .code { background-color: #f1f2f6; padding: 10px; font-family: monospace; border-radius: 4px; }
+        ul { padding-left: 20px; }
+        li { margin: 5px 0; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
+        th { background-color: #e9ecef; font-weight: bold; }
+        .screenshot-container {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .screenshot-container img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>📤 Выгрузка отпусков и графиков работы</h1>
+    
+    <h2>📥 Выгрузка отпусков из ТДМС</h2>
+    <div class="step">
+        <p>Для получения выгрузки отпусков необходимо выполнить следующие действия:</p>
+        <ol>
+            <li>
+                <strong>Откройте выборку "Отсутствие сотрудников" в ТДМС на Рабочем столе Малинина Владислава</strong>
+            </li>
+            <li>
+                <strong>Выставьте фильтры "С" и "По"</strong> - даты берутся за запасом в 1 месяц до и после дат необходимой выгрузки
+                <div class="screenshot-container">
+                    <img src="Otpusk.png" alt="Выгрузка отпусков из ТДМС" />
+                    <p><strong>Рисунок: Настройка фильтров для выгрузки отпусков</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Нажмите кнопку "Экспорт в Excel"</strong> для сохранения данных в файл Excel
+            </li>
+        </ol>
+    </div>
+    
+    <h2>📅 Выгрузка графика работы из СКУД</h2>
+    <div class="step">
+        <p>Для получения выгрузки графика работы необходимо выполнить следующие действия:</p>
+        <ol>
+            <li>
+                <strong>В СКУД нажмите кнопку "Отчеты"</strong>
+                <div class="screenshot-container">
+                    <img src="Generator.png" alt="Кнопка Отчеты в СКУД" />
+                    <p><strong>Рисунок: Кнопка Отчеты в СКУД</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Выберите отчет "Графики работы сотрудников"</strong>
+                <div class="screenshot-container">
+                    <img src="Grafik_raboti_1.png" alt="Выбор отчета Графики работы сотрудников" />
+                    <p><strong>Рисунок: Выбор отчета Графики работы сотрудников</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Нажмите "Документ Excel (XML)"</strong>
+                <div class="screenshot-container">
+                    <img src="Grafik_raboti_2.png" alt="Экспорт в Excel XML" />
+                    <p><strong>Рисунок: Экспорт графика работы в Excel</strong></p>
+                </div>
+            </li>
+        </ol>
+    </div>
+    
+    <h2>🎯 Общее описание</h2>
+    <p>Надстройка СКУД позволяет автоматически проставлять причины отсутствия сотрудников и графики их работы 
+    на основе данных из внешних файлов Excel.</p>
+    
+    <h2>📋 Форматы файлов</h2>
+    
+    <h3>Формат файла отпусков</h3>
+    <div class="warning">
+        <strong>Важно!</strong> Файл с отпусками должен иметь следующую структуру:
+        <table>
+            <tr>
+                <th>Колонка</th>
+                <th>Содержимое</th>
+                <th>Описание</th>
+            </tr>
+            <tr>
+                <td>A</td>
+                <td>ФИО сотрудника</td>
+                <td>Полное имя сотрудника (должно совпадать с данными в файле СКУД)</td>
+            </tr>
+            <tr>
+                <td>E</td>
+                <td>Дата начала отпуска</td>
+                <td>Дата начала периода отпуска</td>
+            </tr>
+            <tr>
+                <td>F</td>
+                <td>Дата окончания отпуска</td>
+                <td>Дата окончания периода отпуска</td>
+            </tr>
+            <tr>
+                <td>G</td>
+                <td>Причина отсутствия</td>
+                <td>Текст причины отсутствия, который будет проставлен в файле СКУД</td>
+            </tr>
+        </table>
+    </div>
+    
+    <h3>Формат файла графиков работы</h3>
+    <div class="warning">
+        <strong>Важно!</strong> Файл с графиками работы должен иметь следующую структуру:
+        <table>
+            <tr>
+                <th>Колонка</th>
+                <th>Содержимое</th>
+                <th>Описание</th>
+            </tr>
+            <tr>
+                <td>C</td>
+                <td>ФИО сотрудника</td>
+                <td>Полное имя сотрудника (начиная со строки 7, должно совпадать с данными в файле СКУД)</td>
+            </tr>
+            <tr>
+                <td>F</td>
+                <td>График работы</td>
+                <td>График работы сотрудника (начиная со строки 7)</td>
+            </tr>
+        </table>
+        <p><strong>Примечание:</strong> Данные начинаются с 7-й строки файла. Первые 6 строк могут содержать заголовки или другую служебную информацию.</p>
+    </div>
+    
+    
+    <h2>🆘 Поддержка</h2>
+    <p>При возникновении проблем или вопросов обращайтесь к разработчику.</p>
+    <p>Разработчик: Малинин Владислав</p>
+    <p>e-mail: vladmalinin93@gmail.com</p>
+    <p>Телефон: +7 (951) 187-67-10</p>
+    
+    <hr>
+</body>
+</html>

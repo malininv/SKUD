@@ -1,4 +1,4 @@
-﻿Option Strict On
+Option Strict On
 Option Explicit On
 Option Infer On
 
@@ -141,173 +141,369 @@ Public Class Ribbon1
         MessageBox.Show(msg, caption, MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
-    ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ===
+    ' Вспомогательная функция для поиска папки проекта
+    Private Function FindProjectPath() As String
+        ' Метод 1: Проверяем известный путь к проекту (для разработки)
+        Dim knownPath As String = "C:\Users\Vladislav\source\repos\SKUD"
+        If Directory.Exists(Path.Combine(knownPath, "src")) Then
+            Return knownPath
+        End If
+
+        ' Метод 2: Ищем папку SKUD в стандартных местах
+        Dim userProfile As String = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+        Dim userName As String = Environment.UserName
+        Dim possiblePaths As String() = {
+            Path.Combine(userProfile, "source", "repos", "SKUD"),
+            Path.Combine(userProfile, "Documents", "source", "repos", "SKUD"),
+            Path.Combine("C:\", "Users", userName, "source", "repos", "SKUD"),
+            Path.Combine("C:\", "Users", userName, "Documents", "source", "repos", "SKUD")
+        }
+
+        For Each pathItem In possiblePaths
+            If Directory.Exists(pathItem) AndAlso Directory.Exists(Path.Combine(pathItem, "src")) Then
+                Return pathItem
+            End If
+        Next
+
+        ' Метод 3: Путь к сборке - поднимаемся по дереву
+        Dim assemblyPath As String = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
+        If Not String.IsNullOrEmpty(assemblyPath) Then
+            Dim searchPath As String = assemblyPath
+            ' Поднимаемся по дереву папок, ищем папку src или файл .vbproj
+            For i As Integer = 0 To 15
+                If String.IsNullOrEmpty(searchPath) Then Exit For
+
+                ' Проверяем наличие папки src
+                If Directory.Exists(Path.Combine(searchPath, "src")) Then
+                    Return searchPath
+                End If
+
+                ' Ищем файл .vbproj или .sln
+                Dim vbprojFiles As String() = Directory.GetFiles(searchPath, "*.vbproj")
+                Dim slnFiles As String() = Directory.GetFiles(searchPath, "*.sln")
+                If (vbprojFiles.Length > 0 OrElse slnFiles.Length > 0) AndAlso Directory.Exists(Path.Combine(searchPath, "src")) Then
+                    Return searchPath
+                End If
+
+                Dim parentDir As DirectoryInfo = Directory.GetParent(searchPath)
+                If parentDir Is Nothing Then Exit For
+                searchPath = parentDir.FullName
+            Next
+        End If
+
+        ' Метод 4: Пробуем через текущую рабочую директорию
+        Dim currentDir As String = Directory.GetCurrentDirectory()
+        Dim searchFromCurrent As String = currentDir
+        For i As Integer = 0 To 10
+            If Directory.Exists(Path.Combine(searchFromCurrent, "src")) Then
+                Return searchFromCurrent
+            End If
+            Dim parentDir As DirectoryInfo = Directory.GetParent(searchFromCurrent)
+            If parentDir Is Nothing Then Exit For
+            searchFromCurrent = parentDir.FullName
+        Next
+
+        ' Метод 5: Пробуем через AppDomain
+        Try
+            Dim baseDir As String = AppDomain.CurrentDomain.BaseDirectory
+            If Not String.IsNullOrEmpty(baseDir) Then
+                Dim searchFromBase As String = baseDir
+                For i As Integer = 0 To 10
+                    If Directory.Exists(Path.Combine(searchFromBase, "src")) Then
+                        Return searchFromBase
+                    End If
+                    Dim parentDir As DirectoryInfo = Directory.GetParent(searchFromBase)
+                    If parentDir Is Nothing Then Exit For
+                    searchFromBase = parentDir.FullName
+                Next
+            End If
+        Catch
+        End Try
+
+        Return Nothing
+    End Function
+
+    ' Вспомогательная функция для сохранения скриншота из ресурсов
+    Private Sub SaveScreenshotFromResources(tempDir As String, resourceName As String, fileName As String)
+        Dim saved As Boolean = False
+
+        ' Метод 1: Пробуем через рефлексию - прямое обращение к свойствам My.Resources
+        Try
+            Dim resourceType As Type = GetType(My.Resources.Resources)
+            Dim prop As System.Reflection.PropertyInfo = resourceType.GetProperty(resourceName, System.Reflection.BindingFlags.Public Or System.Reflection.BindingFlags.Static)
+            If prop IsNot Nothing Then
+                Dim resourceObject As Object = prop.GetValue(Nothing, Nothing)
+                If resourceObject IsNot Nothing AndAlso TypeOf resourceObject Is System.Drawing.Bitmap Then
+                    Dim screenshotImage As System.Drawing.Bitmap = DirectCast(resourceObject, System.Drawing.Bitmap)
+                    Dim tempScreenshotPath As String = Path.Combine(tempDir, fileName)
+                    screenshotImage.Save(tempScreenshotPath, System.Drawing.Imaging.ImageFormat.Png)
+                    saved = True
+                End If
+            End If
+        Catch
+        End Try
+
+        ' Метод 2: Если первый не сработал, пробуем через ResourceManager
+        If Not saved Then
+            Try
+                Dim resourceManager As System.Resources.ResourceManager = My.Resources.ResourceManager
+                Dim resourceObject As Object = resourceManager.GetObject(resourceName)
+
+                If resourceObject IsNot Nothing AndAlso TypeOf resourceObject Is System.Drawing.Bitmap Then
+                    Dim screenshotImage As System.Drawing.Bitmap = DirectCast(resourceObject, System.Drawing.Bitmap)
+                    Dim tempScreenshotPath As String = Path.Combine(tempDir, fileName)
+                    screenshotImage.Save(tempScreenshotPath, System.Drawing.Imaging.ImageFormat.Png)
+                    saved = True
+                End If
+            Catch
+            End Try
+        End If
+
+        ' Метод 3: Если ресурсы не загрузились, пробуем скопировать из файла (fallback)
+        If Not saved Then
+            Try
+                Dim projectPath As String = FindProjectPath()
+                If Not String.IsNullOrEmpty(projectPath) Then
+                    Dim screenshotPath As String = Path.Combine(projectPath, "src", fileName)
+                    If File.Exists(screenshotPath) Then
+                        Dim tempScreenshotPath As String = Path.Combine(tempDir, fileName)
+                        File.Copy(screenshotPath, tempScreenshotPath, True)
+                        saved = True
+                    End If
+                End If
+            Catch
+                ' Игнорируем ошибки при копировании из файла
+            End Try
+        End If
+    End Sub
+
+    ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ПОЛЬЗОВАТЕЛЯ ===
     Private Sub btnShowInstructions_Click(sender As Object, e As RibbonControlEventArgs) Handles btnShowInstructions.Click
         Try
-            ' Создаем HTML-страницу с инструкцией
-            Dim instructionHtml As String = CreateInstructionHtml()
+            Dim screenshotFileName As String = "Excel_panel.png"
+
+            ' Создаем временную папку
+            Dim tempDir As String = Path.Combine(Path.GetTempPath(), "SKUD_Instructions")
+            If Not Directory.Exists(tempDir) Then
+                Directory.CreateDirectory(tempDir)
+            End If
+
+            ' Получаем HTML из ресурсов или из файла
+            Dim htmlContent As String = Nothing
+            Try
+                ' Пробуем через рефлексию
+                Dim resourceType As Type = GetType(My.Resources.Resources)
+                Dim prop As System.Reflection.PropertyInfo = resourceType.GetProperty("user_instruction", System.Reflection.BindingFlags.Public Or System.Reflection.BindingFlags.Static)
+                If prop IsNot Nothing Then
+                    htmlContent = DirectCast(prop.GetValue(Nothing, Nothing), String)
+                End If
+            Catch
+            End Try
             
-            ' Создаем временный файл
-            Dim tempPath As String = Path.Combine(Path.GetTempPath(), "SKUD_Instruction.html")
-            File.WriteAllText(tempPath, instructionHtml, System.Text.Encoding.UTF8)
+            ' Если через рефлексию не получилось, пробуем напрямую
+            If String.IsNullOrEmpty(htmlContent) Then
+                Try
+                    htmlContent = My.Resources.user_instruction
+                Catch
+                End Try
+            End If
             
+            ' Проверяем кодировку
+            If htmlContent IsNot Nothing AndAlso htmlContent.Contains("Рћ") Then
+                ' Похоже на неправильную кодировку, пробуем прочитать из файла
+                htmlContent = Nothing
+            End If
+
+            ' Если ресурс не найден или имеет неправильную кодировку, пробуем прочитать из файла
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim projectPath As String = FindProjectPath()
+                If Not String.IsNullOrEmpty(projectPath) Then
+                    Dim htmlPath As String = Path.Combine(projectPath, "src", "user_instruction.html")
+                    If File.Exists(htmlPath) Then
+                        ' Читаем с автоматическим определением кодировки
+                        htmlContent = File.ReadAllText(htmlPath, System.Text.Encoding.UTF8)
+                    End If
+                End If
+            End If
+
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim errorMsg As String = "Не удалось загрузить инструкцию из ресурсов или файла." & Environment.NewLine & Environment.NewLine
+                errorMsg &= "Проверьте:" & Environment.NewLine
+                errorMsg &= "1. Файл user_instruction.html добавлен в ресурсы проекта" & Environment.NewLine
+                errorMsg &= "2. Файл находится в папке src проекта"
+                MessageBox.Show(errorMsg, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            ' Сохраняем HTML во временный файл с правильной кодировкой UTF-8 с BOM
+            Dim tempHtmlPath As String = Path.Combine(tempDir, "SKUD_UserInstruction.html")
+            Using writer As New System.IO.StreamWriter(tempHtmlPath, False, New System.Text.UTF8Encoding(True))
+                writer.Write(htmlContent)
+            End Using
+
+            ' Сохраняем все изображения из ресурсов во временную папку
+            SaveScreenshotFromResources(tempDir, "Excel_panel", "Excel_panel.png")
+            SaveScreenshotFromResources(tempDir, "URV", "URV.png")
+            SaveScreenshotFromResources(tempDir, "Nastroiki", "Nastroiki.png")
+            SaveScreenshotFromResources(tempDir, "Sotrudniki", "Sotrudniki.png")
+            SaveScreenshotFromResources(tempDir, "Export_v_Excel", "Export_v_Excel.png")
+            SaveScreenshotFromResources(tempDir, "Export_parametri", "Export_parametri.png")
+
             ' Открываем в браузере по умолчанию
-            Process.Start(tempPath)
-            
+            Process.Start(tempHtmlPath)
+
         Catch ex As Exception
-            MessageBox.Show($"Ошибка при открытии инструкции: {ex.Message}", "Ошибка", 
+            MessageBox.Show($"Ошибка при открытии инструкции: {ex.Message}", "Ошибка",
                           MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
-    ' Создает HTML-страницу с инструкцией
-    Private Function CreateInstructionHtml() As String
-        Return "<!DOCTYPE html>
-<html lang=""ru"">
-<head>
-    <meta charset=""UTF-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Инструкция по использованию СКУД</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #34495e; margin-top: 30px; }
-        h3 { color: #7f8c8d; }
-        .step { background-color: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
-        .warning { background-color: #fff3cd; padding: 15px; margin: 10px 0; border-left: 4px solid #ffc107; }
-        .success { background-color: #d4edda; padding: 15px; margin: 10px 0; border-left: 4px solid #28a745; }
-        .code { background-color: #f1f2f6; padding: 10px; font-family: monospace; border-radius: 4px; }
-        ul { padding-left: 20px; }
-        li { margin: 5px 0; }
-        .image-placeholder { 
-            background-color: #e9ecef; 
-            border: 2px dashed #6c757d; 
-            padding: 40px; 
-            text-align: center; 
-            margin: 20px 0;
-            border-radius: 8px;
-        }
-    </style>
-</head>
-<body>
-    <h1>📋 Инструкция по использованию СКУД</h1>
-    
-    <h2>🎯 Общее описание</h2>
-    <p>Надстройка СКУД предназначена для автоматической обработки данных системы контроля и управления доступом, 
-    создания отчетов по отделам и проставления отпусков и графиков работы.</p>
-    
-    <h2>🔧 Основные функции</h2>
-    
-    <h3>1. Отделы по листам</h3>
-    <div class=""step"">
-        <strong>Назначение:</strong> Создает один файл Excel с отдельными листами для каждого отдела.<br>
-        <strong>Использование:</strong>
-        <ul>
-            <li><strong>Активная книга:</strong> Обрабатывает текущую открытую книгу Excel</li>
-            <li><strong>Выбрать файл:</strong> Позволяет выбрать файл для обработки</li>
-        </ul>
-    </div>
-    
-    <h3>2. Отделы по файлам</h3>
-    <div class=""step"">
-        <strong>Назначение:</strong> Создает отдельный файл Excel для каждого отдела в папке.<br>
-        <strong>Использование:</strong>
-        <ul>
-            <li><strong>Активная книга:</strong> Обрабатывает текущую открытую книгу Excel</li>
-            <li><strong>Выбрать файл:</strong> Позволяет выбрать файл для обработки</li>
-        </ul>
-    </div>
-    
-    <h3>3. Проставление отпусков</h3>
-    <div class=""step"">
-        <strong>Назначение:</strong> Автоматически проставляет причины отсутствия сотрудников на основе файла отпусков.<br>
-        <strong>Формат файла отпусков:</strong>
-        <ul>
-            <li>Колонка A: ФИО сотрудника</li>
-            <li>Колонка E: Дата начала отпуска</li>
-            <li>Колонка F: Дата окончания отпуска</li>
-            <li>Колонка G: Причина отсутствия</li>
-        </ul>
-    </div>
-    
-    <h3>4. Проставление графиков работы</h3>
-    <div class=""step"">
-        <strong>Назначение:</strong> Автоматически проставляет графики работы сотрудников.<br>
-        <strong>Формат файла графиков:</strong>
-        <ul>
-            <li>Колонка C: ФИО сотрудника (начиная со строки 7)</li>
-            <li>Колонка F: График работы (начиная со строки 7)</li>
-        </ul>
-    </div>
-    
-    <h2>📊 Структура данных</h2>
-    <div class=""warning"">
-        <strong>Важно!</strong> Исходный файл выгрузки из СКУД должен содержать следующие колонки:
-        <ul>
-            <li>1. Фирма</li>
-            <li>2. Подразделение</li>
-            <li>3. Сотрудник</li>
-            <li>4. Должность</li>
-            <li>5. Таб.№</li>
-            <li>6. Дата</li>
-            <li>7. Находился в здании</li>
-            <li>8. Прогулял</li>
-            <li>9. Причины не выхода</li>
-            <li>10. Комм. причины отсутствия</li>
-            <li>11. Начало дня</li>
-            <li>12. Конец дня</li>
-            <li>13. Работа в праздничные дни</li>
-            <li>14. Фактическая переработка</li>
-        </ul>
-    </div>
-    
-    <h2>⚙️ Настройки в СКУД</h2>
-    <div class=""step"">
-        <strong>Важно!</strong> Для корректной работы надстройки в системе СКУД должны быть настроены следующие параметры:
-    </div>
-    
-    <div class=""image-placeholder"">
-        📷 <strong>Скриншот 1: Параметры в Учетре рабочего времени в СКУД</strong><br>
-        Здесь будет изображение с настройками системы СКУД для корректной выгрузки данных
-    </div>
-    
-    <div class=""image-placeholder"">
-        📷 <strong>Скриншот 2: Настройки экспорта отчета в Excel в СКУД. Выбраны все колонки.</strong><br>
-        Здесь будет изображение с примером правильной структуры файла выгрузки
-    </div>
+    ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ПО ВЫГРУЗКЕ ОТЧЕТА ИЗ СКУД ===
+    Private Sub btnShowExportReport_Click(sender As Object, e As RibbonControlEventArgs) Handles btnShowExportReport.Click
+        Try
+            ' Создаем временную папку
+            Dim tempDir As String = Path.Combine(Path.GetTempPath(), "SKUD_Instructions")
+            If Not Directory.Exists(tempDir) Then
+                Directory.CreateDirectory(tempDir)
+            End If
 
-    <h2>🎨 Особенности обработки</h2>
-    
-    <h3>Автоматическое форматирование</h3>
-    <ul>
-        <li>Удаление выходных дней с нулевым временем</li>
-        <li>Подсветка ячеек с нулевым временем (желтый фон, красный шрифт)</li>
-        <li>Цветовая индикация фактической переработки:
-            <ul>
-                <li>🟢 Зеленый: положительная переработка</li>
-                <li>🟡 Желтый: небольшая недоработка (-1 до 0 часов)</li>
-                <li>🔴 Красный: значительная недоработка (более -1 часа)</li>
-            </ul>
-        </li>
-    </ul>
-    
-    <h3>Создание листов ""_нет_прохода""</h3>
-    <div class=""success"">
-        Система автоматически создает отдельные листы с суффиксом ""_нет_прохода"" для отделов, 
-        где сотрудники не проходили через систему контроля доступа за указанный период.
-    </div>
-    
-    
-    <h2>🆘 Поддержка</h2>
-    <p>При возникновении проблем или вопросов обращайтесь к разработчику.</p>
-    <p>Разработчик: Малинин Владислав</p>
-    <p>e-mail: vladmalinin93@gmail.com</p>
-    <p>Телефон: +7 (951) 187-67-10</p>
-    
-    <hr>
-    <p><em>Версия: 1.0.0.9 | Дата обновления: " & DateTime.Now.ToString("dd.MM.yyyy") & "</em></p>
-</body>
-</html>"
-    End Function
+            ' Получаем HTML из ресурсов или из файла
+            Dim htmlContent As String = Nothing
+            Try
+                ' Пробуем загрузить из ресурсов через ResourceManager
+                Dim resourceManager As System.Resources.ResourceManager = My.Resources.ResourceManager
+                Dim resourceObject As Object = resourceManager.GetObject("export_report_instruction")
+                If resourceObject IsNot Nothing AndAlso TypeOf resourceObject Is String Then
+                    htmlContent = DirectCast(resourceObject, String)
+                    ' Если строка содержит неправильную кодировку, пробуем перекодировать
+                    If htmlContent IsNot Nothing AndAlso htmlContent.Contains("Рћ") Then
+                        ' Похоже на неправильную кодировку, пробуем прочитать из файла
+                        htmlContent = Nothing
+                    End If
+                End If
+            Catch
+                ' Ресурс не найден, пробуем прочитать из файла
+            End Try
+
+            ' Если ресурс не найден или имеет неправильную кодировку, пробуем прочитать из файла
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim projectPath As String = FindProjectPath()
+                If Not String.IsNullOrEmpty(projectPath) Then
+                    Dim htmlPath As String = Path.Combine(projectPath, "src", "export_report_instruction.html")
+                    If File.Exists(htmlPath) Then
+                        ' Читаем с автоматическим определением кодировки
+                        htmlContent = File.ReadAllText(htmlPath, System.Text.Encoding.UTF8)
+                    End If
+                End If
+            End If
+
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim errorMsg As String = "Не удалось загрузить инструкцию из ресурсов или файла." & Environment.NewLine & Environment.NewLine
+                errorMsg &= "Проверьте:" & Environment.NewLine
+                errorMsg &= "1. Файл export_report_instruction.html добавлен в ресурсы проекта" & Environment.NewLine
+                errorMsg &= "2. Файл находится в папке src проекта"
+                MessageBox.Show(errorMsg, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            ' Сохраняем HTML во временный файл с правильной кодировкой UTF-8 с BOM
+            Dim tempHtmlPath As String = Path.Combine(tempDir, "SKUD_ExportReportInstruction.html")
+            Using writer As New System.IO.StreamWriter(tempHtmlPath, False, New System.Text.UTF8Encoding(True))
+                writer.Write(htmlContent)
+            End Using
+
+            ' Сохраняем все изображения из ресурсов во временную папку
+            SaveScreenshotFromResources(tempDir, "URV", "URV.png")
+            SaveScreenshotFromResources(tempDir, "Ustanovit_soed", "Ustanovit_soed.png")
+            SaveScreenshotFromResources(tempDir, "Nastroiki", "Nastroiki.png")
+            SaveScreenshotFromResources(tempDir, "Sotrudniki", "Sotrudniki.png")
+            SaveScreenshotFromResources(tempDir, "Export_v_Excel", "Export_v_Excel.png")
+            SaveScreenshotFromResources(tempDir, "Export_parametri", "Export_parametri.png")
+
+            ' Открываем в браузере по умолчанию
+            Process.Start(tempHtmlPath)
+
+        Catch ex As Exception
+            MessageBox.Show($"Ошибка при открытии инструкции: {ex.Message}", "Ошибка",
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    ' === ПОКАЗАТЬ ИНСТРУКЦИЮ ПО ВЫГРУЗКЕ ОТПУСКОВ И ГРАФИКОВ ===
+    Private Sub btnShowExportInstructions_Click(sender As Object, e As RibbonControlEventArgs) Handles btnShowExportInstructions.Click
+        Try
+            ' Создаем временную папку
+            Dim tempDir As String = Path.Combine(Path.GetTempPath(), "SKUD_Instructions")
+            If Not Directory.Exists(tempDir) Then
+                Directory.CreateDirectory(tempDir)
+            End If
+
+            ' Получаем HTML из ресурсов или из файла
+            Dim htmlContent As String = Nothing
+            Try
+                ' Пробуем через рефлексию
+                Dim resourceType As Type = GetType(My.Resources.Resources)
+                Dim prop As System.Reflection.PropertyInfo = resourceType.GetProperty("export_instruction", System.Reflection.BindingFlags.Public Or System.Reflection.BindingFlags.Static)
+                If prop IsNot Nothing Then
+                    htmlContent = DirectCast(prop.GetValue(Nothing, Nothing), String)
+                End If
+            Catch
+            End Try
+            
+            ' Если через рефлексию не получилось, пробуем напрямую
+            If String.IsNullOrEmpty(htmlContent) Then
+                Try
+                    htmlContent = My.Resources.export_instruction
+                Catch
+                End Try
+            End If
+            
+            ' Проверяем кодировку
+            If htmlContent IsNot Nothing AndAlso htmlContent.Contains("Рћ") Then
+                ' Похоже на неправильную кодировку, пробуем прочитать из файла
+                htmlContent = Nothing
+            End If
+
+            ' Если ресурс не найден или имеет неправильную кодировку, пробуем прочитать из файла
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim projectPath As String = FindProjectPath()
+                If Not String.IsNullOrEmpty(projectPath) Then
+                    Dim htmlPath As String = Path.Combine(projectPath, "src", "export_instruction.html")
+                    If File.Exists(htmlPath) Then
+                        ' Читаем с автоматическим определением кодировки
+                        htmlContent = File.ReadAllText(htmlPath, System.Text.Encoding.UTF8)
+                    End If
+                End If
+            End If
+
+            If String.IsNullOrEmpty(htmlContent) Then
+                Dim errorMsg As String = "Не удалось загрузить инструкцию из ресурсов или файла." & Environment.NewLine & Environment.NewLine
+                errorMsg &= "Проверьте:" & Environment.NewLine
+                errorMsg &= "1. Файл export_instruction.html добавлен в ресурсы проекта" & Environment.NewLine
+                errorMsg &= "2. Файл находится в папке src проекта"
+                MessageBox.Show(errorMsg, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            ' Сохраняем HTML во временный файл с правильной кодировкой UTF-8 с BOM
+            Dim tempHtmlPath As String = Path.Combine(tempDir, "SKUD_ExportInstruction.html")
+            Using writer As New System.IO.StreamWriter(tempHtmlPath, False, New System.Text.UTF8Encoding(True))
+                writer.Write(htmlContent)
+            End Using
+
+            ' Сохраняем изображения из ресурсов во временную папку
+            SaveScreenshotFromResources(tempDir, "Otpusk", "Otpusk.png")
+            SaveScreenshotFromResources(tempDir, "Generator", "Generator.png")
+            SaveScreenshotFromResources(tempDir, "Grafik_raboti_1", "Grafik_raboti_1.png")
+            SaveScreenshotFromResources(tempDir, "Grafik_raboti_2", "Grafik_raboti_2.png")
+
+            ' Открываем в браузере по умолчанию
+            Process.Start(tempHtmlPath)
+
+        Catch ex As Exception
+            MessageBox.Show($"Ошибка при открытии инструкции: {ex.Message}", "Ошибка",
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
 
 End Class

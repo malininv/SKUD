@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выгрузка отчета из СКУД</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        .step { background-color: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .screenshot-container {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .screenshot-container img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: block;
+            margin: 0 auto;
+        }
+        ol { padding-left: 20px; }
+        li { margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>📥 Выгрузка отчета из СКУД</h1>
+    
+    <div class="step">
+        <p>Перед использованием надстройки необходимо выгрузить отчет из системы СКУД. Выполните следующие шаги:</p>
+        <ol>
+            <li>
+                <strong>Зайдите в УРВ (Учет рабочего времени)</strong>
+                <div class="screenshot-container">
+                    <img src="URV.png" alt="Вход в УРВ" />
+                    <p><strong>Рисунок: Вход в модуль УРВ</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Нажмите на вкладке Сервер → Установить соединение</strong>
+                <div class="screenshot-container">
+                    <img src="Ustanovit_soed.png" alt="Установить соединение" />
+                    <p><strong>Рисунок: Установка соединения с сервером</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Выберите Файл → Параметры</strong> и установите параметры как на скриншоте:
+                <div class="screenshot-container">
+                    <img src="Nastroiki.png" alt="Параметры в УРВ" />
+                    <p><strong>Рисунок: Настройка параметров в УРВ</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Выберите тип отчета: "Отчет о сотруднике (итоговый)"</strong>
+            </li>
+            <li>
+                <strong>На вкладке "Сотрудники" выберите необходимых сотрудников и нажмите "Сформировать"</strong>
+                <div class="screenshot-container">
+                    <img src="Sotrudniki.png" alt="Выбор сотрудников" />
+                    <p><strong>Рисунок: Выбор сотрудников для отчета</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Нажмите на кнопку "Экспорт → Экспорт в Microsoft Excel"</strong>
+                <div class="screenshot-container">
+                    <img src="Export_v_Excel.png" alt="Экспорт в Excel" />
+                    <p><strong>Рисунок: Экспорт отчета в Excel</strong></p>
+                </div>
+            </li>
+            <li>
+                <strong>Установите параметры экспорта</strong>
+                <div class="screenshot-container">
+                    <img src="Export_parametri.png" alt="Параметры экспорта" />
+                    <p><strong>Рисунок: Параметры экспорта в Excel</strong></p>
+                </div>
+            </li>
+        </ol>
+        <p><strong>После выполнения этих шагов у вас будет файл Excel с данными из СКУД, который можно обработать с помощью надстройки.</strong></p>
+    </div>
+    
+    <hr>
+</body>
+</html>

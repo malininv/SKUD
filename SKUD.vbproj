@@ -32,10 +32,10 @@
     <ResolveComReferenceSilent>true</ResolveComReferenceSilent>
     <IsWebBootstrapper>False</IsWebBootstrapper>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <PublishUrl>E:\SKUD1.27\</PublishUrl>
+    <PublishUrl>E:\SKUD1.31\</PublishUrl>
     <InstallUrl />
     <TargetCulture>en</TargetCulture>
-    <ApplicationVersion>1.0.0.25</ApplicationVersion>
+    <ApplicationVersion>1.0.0.28</ApplicationVersion>
     <AutoIncrementApplicationRevision>true</AutoIncrementApplicationRevision>
     <UpdateEnabled>true</UpdateEnabled>
     <UpdateInterval>7</UpdateInterval>
@@ -276,6 +276,51 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Excel_panel.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\export_instruction.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\user_instruction.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Export_parametri.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Export_v_excel.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Grafik_raboti.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Nastroiki.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Sotrudniki.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\URV.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Ustanovit_soed.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Otpusk.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Generator.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Grafik_raboti 1.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Grafik_raboti 2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\export_report_instruction.html" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
